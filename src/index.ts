@@ -3,7 +3,8 @@
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { DeviceCodeCredential } from "@azure/identity";
+import { DeviceCodeCredential, useIdentityPlugin } from "@azure/identity";
+import { cachePersistencePlugin } from "@azure/identity-cache-persistence";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { GraphService } from "./services/graph.js";
@@ -13,8 +14,23 @@ import { registerSearchTools } from "./tools/search.js";
 import { registerTeamsTools } from "./tools/teams.js";
 import { registerUsersTools } from "./tools/users.js";
 
+// Enable persistent token caching
+useIdentityPlugin(cachePersistencePlugin);
+
 const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
 const TOKEN_PATH = join(homedir(), ".msgraph-mcp-auth.json");
+
+const SCOPES = [
+  "User.Read",
+  "User.ReadBasic.All",
+  "Team.ReadBasic.All",
+  "Channel.ReadBasic.All",
+  "ChannelMessage.Read.All",
+  "ChannelMessage.Send",
+  "TeamMember.Read.All",
+  "Chat.ReadBasic",
+  "Chat.ReadWrite",
+];
 
 // Authentication functions
 async function authenticate() {
@@ -25,6 +41,9 @@ async function authenticate() {
     const credential = new DeviceCodeCredential({
       clientId: CLIENT_ID,
       tenantId: "common",
+      tokenCachePersistenceOptions: {
+        enabled: true,
+      },
       userPromptCallback: (info) => {
         console.log("\n📱 Please complete authentication:");
         console.log(`🌐 Visit: ${info.verificationUri}`);
@@ -33,37 +52,23 @@ async function authenticate() {
       },
     });
 
-    // Get the actual token
-    const token = await credential.getToken([
-      "User.Read",
-      "User.ReadBasic.All",
-      "Team.ReadBasic.All",
-      "Channel.ReadBasic.All",
-      "ChannelMessage.Read.All",
-      "ChannelMessage.Send",
-      "TeamMember.Read.All",
-      "Chat.ReadBasic",
-      "Chat.ReadWrite",
-    ]);
+    // Test the credential - this will trigger auth flow if needed
+    const token = await credential.getToken(SCOPES);
 
     if (token) {
-      // Save authentication info with the actual token
-      const authInfo = {
-        clientId: CLIENT_ID,
-        authenticated: true,
-        timestamp: new Date().toISOString(),
-        expiresAt: token.expiresOnTimestamp
-          ? new Date(token.expiresOnTimestamp).toISOString()
-          : undefined,
-        token: token.token, // Save the actual access token
-      };
-
-      await fs.writeFile(TOKEN_PATH, JSON.stringify(authInfo, null, 2));
-
       console.log("\n✅ Authentication successful!");
-      console.log(`💾 Credentials saved to: ${TOKEN_PATH}`);
+      console.log("💾 Credentials securely cached by Azure Identity");
+      console.log(`⏰ Token expires: ${new Date(token.expiresOnTimestamp).toLocaleString()}`);
       console.log("\n🚀 You can now use the MCP server in Cursor!");
-      console.log("   The server will automatically use these credentials.");
+      console.log("   The server will automatically use cached credentials.");
+
+      // Clean up old auth file if it exists
+      try {
+        await fs.unlink(TOKEN_PATH);
+        console.log("🧹 Cleaned up old authentication file");
+      } catch {
+        // File doesn't exist, which is fine
+      }
     }
   } catch (error) {
     console.error(
@@ -76,45 +81,57 @@ async function authenticate() {
 
 async function checkAuth() {
   try {
-    const data = await fs.readFile(TOKEN_PATH, "utf8");
-    const authInfo = JSON.parse(data);
+    const credential = new DeviceCodeCredential({
+      clientId: CLIENT_ID,
+      tenantId: "common",
+      tokenCachePersistenceOptions: {
+        enabled: true,
+      },
+    });
 
-    if (authInfo.authenticated && authInfo.clientId) {
-      console.log("✅ Authentication found");
-      console.log(`📅 Authenticated on: ${authInfo.timestamp}`);
+    // Try to get a token silently (from cache)
+    const token = await credential.getToken(["User.Read"]);
 
-      // Check if we have expiration info
-      if (authInfo.expiresAt) {
-        const expiresAt = new Date(authInfo.expiresAt);
-        const now = new Date();
-
-        if (expiresAt > now) {
-          console.log(`⏰ Token expires: ${expiresAt.toLocaleString()}`);
-          console.log("🎯 Ready to use with MCP server!");
-        } else {
-          console.log("⚠️  Token may have expired - please re-authenticate");
-          return false;
-        }
-      } else {
-        console.log("🎯 Ready to use with MCP server!");
-      }
+    if (token) {
+      console.log("✅ Authentication found in secure cache");
+      console.log(`⏰ Token expires: ${new Date(token.expiresOnTimestamp).toLocaleString()}`);
+      console.log("🎯 Ready to use with MCP server!");
       return true;
     }
-  } catch (error) {
+
+    // Check for old auth file and suggest migration
+    try {
+      await fs.access(TOKEN_PATH);
+      console.log("⚠️  Found old authentication file.");
+      console.log("🔄 Please re-authenticate to use secure token caching:");
+      console.log("   npx @floriscornel/teams-mcp@latest authenticate");
+      return false;
+    } catch {
+      // No old file either
+    }
+
     console.log("❌ No authentication found");
     return false;
+  } catch (error) {
+    console.log(
+      "❌ Authentication check failed:",
+      error instanceof Error ? error.message : String(error)
+    );
+    return false;
   }
-  return false;
 }
 
 async function logout() {
   try {
+    // Clean up old auth file if it exists
     await fs.unlink(TOKEN_PATH);
-    console.log("✅ Successfully logged out");
-    console.log("🔄 Run 'npx @floriscornel/teams-mcp@latest authenticate' to re-authenticate");
-  } catch (error) {
-    console.log("ℹ️  No authentication to clear");
+    console.log("🧹 Cleaned up old authentication file");
+  } catch {
+    // File doesn't exist
   }
+
+  console.log("ℹ️  Azure Identity cached credentials will expire automatically");
+  console.log("🔄 Run 'npx @floriscornel/teams-mcp@latest authenticate' to re-authenticate");
 }
 
 // MCP Server setup

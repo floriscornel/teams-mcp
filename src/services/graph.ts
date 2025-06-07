@@ -1,7 +1,9 @@
-import { promises as fs } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { DeviceCodeCredential, useIdentityPlugin } from "@azure/identity";
+import { cachePersistencePlugin } from "@azure/identity-cache-persistence";
 import { Client } from "@microsoft/microsoft-graph-client";
+
+// Ensure plugin is loaded
+useIdentityPlugin(cachePersistencePlugin);
 
 export interface AuthStatus {
   isAuthenticated: boolean;
@@ -10,20 +12,24 @@ export interface AuthStatus {
   expiresAt?: string | undefined;
 }
 
-interface StoredAuthInfo {
-  clientId: string;
-  authenticated: boolean;
-  timestamp: string;
-  expiresAt?: string;
-  token: string;
-}
+const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
+const SCOPES = [
+  "User.Read",
+  "User.ReadBasic.All",
+  "Team.ReadBasic.All",
+  "Channel.ReadBasic.All",
+  "ChannelMessage.Read.All",
+  "ChannelMessage.Send",
+  "TeamMember.Read.All",
+  "Chat.ReadBasic",
+  "Chat.ReadWrite",
+];
 
 export class GraphService {
   private static instance: GraphService;
   private client: Client | undefined;
-  private readonly authPath = join(homedir(), ".msgraph-mcp-auth.json");
+  private credential: DeviceCodeCredential | undefined;
   private isInitialized = false;
-  private authInfo: StoredAuthInfo | undefined;
 
   static getInstance(): GraphService {
     if (!GraphService.instance) {
@@ -36,35 +42,28 @@ export class GraphService {
     if (this.isInitialized) return;
 
     try {
-      const authData = await fs.readFile(this.authPath, "utf8");
-      this.authInfo = JSON.parse(authData);
+      this.credential = new DeviceCodeCredential({
+        clientId: CLIENT_ID,
+        tenantId: "common",
+        tokenCachePersistenceOptions: {
+          enabled: true,
+        },
+      });
 
-      if (this.authInfo?.authenticated && this.authInfo?.token) {
-        // Check if token is expired
-        if (this.authInfo.expiresAt) {
-          const expiresAt = new Date(this.authInfo.expiresAt);
-          if (expiresAt <= new Date()) {
-            console.log(
-              "Token has expired. Please re-authenticate with: npx @floriscornel/teams-mcp@latest authenticate"
-            );
-            return;
-          }
-        }
-
-        // Create Graph client with the saved token
-        this.client = Client.initWithMiddleware({
-          authProvider: {
-            getAccessToken: async () => {
-              if (!this.authInfo?.token) {
-                throw new Error("No token available");
-              }
-              return this.authInfo.token;
-            },
+      // Create Graph client with Azure Identity credential
+      this.client = Client.initWithMiddleware({
+        authProvider: {
+          getAccessToken: async () => {
+            if (!this.credential) {
+              throw new Error("Credential not initialized");
+            }
+            const token = await this.credential.getToken(SCOPES);
+            return token?.token || "";
           },
-        });
+        },
+      });
 
-        this.isInitialized = true;
-      }
+      this.isInitialized = true;
     } catch (error) {
       console.error("Failed to initialize Graph client:", error);
     }
@@ -73,17 +72,23 @@ export class GraphService {
   async getAuthStatus(): Promise<AuthStatus> {
     await this.initializeClient();
 
-    if (!this.client) {
+    if (!this.client || !this.credential) {
       return { isAuthenticated: false };
     }
 
     try {
+      // Try to get a token silently first
+      const token = await this.credential.getToken(["User.Read"]);
+      if (!token) {
+        return { isAuthenticated: false };
+      }
+
       const me = await this.client.api("/me").get();
       return {
         isAuthenticated: true,
         userPrincipalName: me?.userPrincipalName ?? undefined,
         displayName: me?.displayName ?? undefined,
-        expiresAt: this.authInfo?.expiresAt,
+        expiresAt: new Date(token.expiresOnTimestamp).toISOString(),
       };
     } catch (error) {
       console.error("Error getting user info:", error);
