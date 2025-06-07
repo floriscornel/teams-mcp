@@ -19,6 +19,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install system dependencies
+        run: |
+          # Install libsecret for Azure Identity Cache Persistence
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev
+
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
