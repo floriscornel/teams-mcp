@@ -1,5 +1,30 @@
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { server } from "./setup.js";
+
+// Mock Azure Identity Cache Persistence to prevent CI failures
+vi.mock("@azure/identity-cache-persistence", () => ({
+  cachePersistencePlugin: {},
+}));
+
+// Mock Azure Identity to prevent native credential storage issues in CI
+vi.mock("@azure/identity", async () => {
+  return {
+    useIdentityPlugin: vi.fn(),
+    DeviceCodeCredential: vi.fn().mockImplementation(() => ({
+      getToken: vi.fn().mockResolvedValue({
+        token: "mock-token",
+        expiresOnTimestamp: Date.now() + 3600000,
+      }),
+    })),
+  };
+});
+
+// Mock @microsoft/microsoft-graph-client
+vi.mock("@microsoft/microsoft-graph-client", () => ({
+  Client: {
+    initWithMiddleware: vi.fn(),
+  },
+}));
 
 // Start MSW server before all tests
 beforeAll(() => {
