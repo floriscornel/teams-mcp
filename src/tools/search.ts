@@ -336,9 +336,9 @@ export function registerSearchTools(server: McpServer, graphService: GraphServic
                 if (messageDate < since) continue;
               }
 
-              // Apply scope filter
+              // Apply scope filter for chats
               if (!includeChats) {
-                break;
+                continue; // Skip chat messages if includeChats is false
               }
 
               // Apply keyword filter (simple text search)
