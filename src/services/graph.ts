@@ -31,6 +31,7 @@ export class GraphService {
   private static instance: GraphService;
   private client: Client | undefined;
   private credential: DeviceCodeCredential | undefined;
+  private silentCredential: DeviceCodeCredential | undefined;
   private isInitialized = false;
 
   static getInstance(): GraphService {
@@ -44,6 +45,7 @@ export class GraphService {
     if (this.isInitialized) return;
 
     try {
+      // Regular credential for normal operations (allows interactive auth)
       this.credential = new DeviceCodeCredential({
         clientId: CLIENT_ID,
         tenantId: "common",
@@ -51,6 +53,36 @@ export class GraphService {
           enabled: true,
         },
       });
+
+      // Silent credential for status checks (no interactive auth)
+      this.silentCredential = new DeviceCodeCredential({
+        clientId: CLIENT_ID,
+        tenantId: "common",
+        tokenCachePersistenceOptions: {
+          enabled: true,
+        },
+        disableAutomaticAuthentication: true,
+      });
+
+      // Verify authentication by attempting to get a token silently
+      const authToken = await this.silentCredential.getToken(["User.Read"]);
+      if (!authToken?.token) {
+        console.error("No valid authentication found in cache. Please authenticate first.");
+        return; // Don't mark as initialized if no valid auth
+      }
+
+      // Verify the token works by making a test call to Graph API
+      const testResponse = await fetch("https://graph.microsoft.com/v1.0/me", {
+        headers: {
+          Authorization: `Bearer ${authToken.token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!testResponse.ok) {
+        console.error(`Authentication validation failed: HTTP ${testResponse.status}`);
+        return; // Don't mark as initialized if auth validation fails
+      }
 
       // Create Graph client with Azure Identity credential
       this.client = Client.initWithMiddleware({
@@ -69,26 +101,44 @@ export class GraphService {
       });
 
       this.isInitialized = true;
+      console.log("Graph service initialized successfully with valid authentication");
     } catch (error) {
       console.error("Failed to initialize Graph client:", error);
+      // Reset credentials on failure
+      this.credential = undefined;
+      this.silentCredential = undefined;
+      this.client = undefined;
     }
   }
 
   async getAuthStatus(): Promise<AuthStatus> {
     await this.initializeClient();
 
-    if (!this.client || !this.credential) {
+    // If initialization failed, we're not authenticated
+    if (!this.isInitialized || !this.silentCredential) {
       return { isAuthenticated: false };
     }
 
     try {
-      // Try to get a token silently first
-      const token = await this.credential.getToken(["User.Read"]);
+      // Get token silently and fetch user info
+      const token = await this.silentCredential.getToken(["User.Read"]);
       if (!token) {
         return { isAuthenticated: false };
       }
 
-      const me = await this.client.api("/me").get();
+      // Use a direct fetch call with the silent token for this status check
+      const me = await fetch("https://graph.microsoft.com/v1.0/me", {
+        headers: {
+          Authorization: `Bearer ${token.token}`,
+          "Content-Type": "application/json",
+        },
+      }).then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+      });
+
       return {
         isAuthenticated: true,
         userPrincipalName: me?.userPrincipalName ?? undefined,
@@ -104,9 +154,9 @@ export class GraphService {
   async getClient(): Promise<Client> {
     await this.initializeClient();
 
-    if (!this.client) {
+    if (!this.client || !this.isInitialized) {
       throw new Error(
-        "Not authenticated. Please run the authentication CLI tool first: npx @floriscornel/teams-mcp@latest authenticate"
+        "Authentication required. Please run: npx @floriscornel/teams-mcp@latest authenticate"
       );
     }
     return this.client;
