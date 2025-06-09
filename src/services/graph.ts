@@ -2,8 +2,10 @@ import { DeviceCodeCredential, useIdentityPlugin } from "@azure/identity";
 import { cachePersistencePlugin } from "@azure/identity-cache-persistence";
 import { Client } from "@microsoft/microsoft-graph-client";
 
-// Ensure plugin is loaded
-useIdentityPlugin(cachePersistencePlugin);
+// Ensure plugin is loaded only in non-test environments
+if (process.env.NODE_ENV !== "test" && !process.env.VITEST) {
+  useIdentityPlugin(cachePersistencePlugin);
+}
 
 export interface AuthStatus {
   isAuthenticated: boolean;
@@ -58,7 +60,10 @@ export class GraphService {
               throw new Error("Credential not initialized");
             }
             const token = await this.credential.getToken(SCOPES);
-            return token?.token || "";
+            if (!token?.token) {
+              throw new Error("Failed to obtain access token");
+            }
+            return token.token;
           },
         },
       });
