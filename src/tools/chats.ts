@@ -105,7 +105,18 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
         // Build query parameters
         const queryParams: string[] = [`$top=${limit}`];
 
-        // Add ordering
+        // Add ordering - Graph API only supports descending order for datetime fields in chat messages
+        if ((orderBy === "createdDateTime" || orderBy === "lastModifiedDateTime") && !descending) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ Error: QueryOptions to order by '${orderBy === "createdDateTime" ? "CreatedDateTime" : "LastModifiedDateTime"}' in 'Ascending' direction is not supported.`,
+              },
+            ],
+          };
+        }
+
         const sortDirection = descending ? "desc" : "asc";
         queryParams.push(`$orderby=${orderBy} ${sortDirection}`);
 

@@ -214,11 +214,23 @@ describe("Chat Tools", () => {
         limit: 10,
         fromUser: "user123",
         orderBy: "lastModifiedDateTime",
-        descending: false,
+        descending: true, // Changed to true since ascending is not supported
       });
 
       expect(mockClient.api).toHaveBeenCalledWith(
-        "/me/chats/chat123/messages?$top=10&$orderby=lastModifiedDateTime asc&$filter=from/user/id eq 'user123'"
+        "/me/chats/chat123/messages?$top=10&$orderby=lastModifiedDateTime desc&$filter=from/user/id eq 'user123'"
+      );
+    });
+
+    it("should reject ascending order for datetime fields", async () => {
+      const result = await getChatMessagesHandler({
+        chatId: "chat123",
+        orderBy: "lastModifiedDateTime",
+        descending: false,
+      });
+
+      expect(result.content[0].text).toBe(
+        "❌ Error: QueryOptions to order by 'LastModifiedDateTime' in 'Ascending' direction is not supported."
       );
     });
 
