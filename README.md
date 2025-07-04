@@ -8,6 +8,10 @@
 
 A Model Context Protocol (MCP) server that provides seamless integration with Microsoft Graph APIs, enabling AI assistants to interact with Microsoft Teams, users, and organizational data.
 
+<a href="https://glama.ai/mcp/servers/@floriscornel/teams-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@floriscornel/teams-mcp/badge" alt="Teams MCP server" />
+</a>
+
 ## 📦 Installation
 
 To use this MCP server in Cursor/Claude/VS Code, add the following configuration:
@@ -194,7 +198,6 @@ npm run build && node dist/index.js
 - `get_recent_messages` - Get recent messages with advanced filtering options
 - `get_my_mentions` - Find messages mentioning the current user
 
-
 ## 📋 Examples
 
 ### Authentication
@@ -256,4 +259,4 @@ MIT License - see LICENSE file for details
 For issues and questions:
 - Check the existing GitHub issues
 - Review Microsoft Graph API documentation
-- Ensure proper authentication and permissions are configured 
+- Ensure proper authentication and permissions are configured
