@@ -1,0 +1,33 @@
+{
+  "name": "wingman-teams-ai",
+  "version": "1.0.0",
+  "description": "Microsoft Teams AI bot with OData/SAP integration via MCP",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "teams",
+    "bot",
+    "ai",
+    "mcp",
+    "odata",
+    "sap"
+  ],
+  "author": "Wingman Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@microsoft/teams-ai": "^1.5.0",
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "botbuilder": "^4.22.0",
+    "restify": "^11.1.0",
+    "openai": "^4.70.0",
+    "dotenv": "^16.4.5"
+  }
+}
