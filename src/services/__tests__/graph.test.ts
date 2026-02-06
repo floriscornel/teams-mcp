@@ -100,6 +100,7 @@ describe("GraphService", () => {
         timestamp: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 3600000).toISOString(),
         account: "test@example.com",
+        token: "mock-access-token",
       });
 
       vi.mocked(fs.readFile).mockResolvedValue(validTokenData);
@@ -131,6 +132,7 @@ describe("GraphService", () => {
         timestamp: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 3600000).toISOString(),
         account: "test@example.com",
+        token: "mock-access-token",
       });
 
       vi.mocked(fs.readFile).mockResolvedValue(validTokenData);
@@ -169,6 +171,7 @@ describe("GraphService", () => {
         timestamp: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 3600000).toISOString(),
         account: "test@example.com",
+        token: "mock-access-token",
       });
 
       vi.mocked(fs.readFile).mockResolvedValue(validTokenData);
@@ -200,6 +203,7 @@ describe("GraphService", () => {
         timestamp: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 3600000).toISOString(),
         account: "test@example.com",
+        token: "mock-access-token",
       });
 
       vi.mocked(fs.readFile).mockResolvedValue(validTokenData);
@@ -228,6 +232,7 @@ describe("GraphService", () => {
         timestamp: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 300000).toISOString(), // 5 minutes from now
         account: "test@example.com",
+        token: "mock-access-token",
       });
 
       vi.mocked(fs.readFile).mockResolvedValue(soonExpiringTokenData);
@@ -256,6 +261,7 @@ describe("GraphService", () => {
         timestamp: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 3600000).toISOString(),
         account: "test@example.com",
+        token: "mock-access-token",
       });
 
       vi.mocked(fs.readFile).mockResolvedValue(validTokenData);
@@ -285,6 +291,106 @@ describe("GraphService", () => {
 
       // readFile should be called for each concurrent call since we reset the singleton
       expect(vi.mocked(fs.readFile)).toHaveBeenCalled();
+    });
+  });
+
+  describe("AUTH_TOKEN environment variable", () => {
+    const originalEnv = process.env.AUTH_TOKEN;
+
+    afterEach(() => {
+      if (originalEnv === undefined) {
+        delete process.env.AUTH_TOKEN;
+      } else {
+        process.env.AUTH_TOKEN = originalEnv;
+      }
+    });
+
+    it("should use AUTH_TOKEN from environment when provided", async () => {
+      // Valid JWT-like token (3 parts, with Graph audience in payload)
+      const mockPayload = btoa(JSON.stringify({ aud: "https://graph.microsoft.com" }));
+      const validToken = `header.${mockPayload}.signature`;
+      process.env.AUTH_TOKEN = validToken;
+
+      const mockClient = {
+        api: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue(mockUser),
+        }),
+      };
+
+      const { Client } = await import("@microsoft/microsoft-graph-client");
+      vi.mocked(Client.initWithMiddleware).mockReturnValue(mockClient as any);
+
+      const status = await graphService.getAuthStatus();
+
+      expect(status.isAuthenticated).toBe(true);
+      expect(vi.mocked(fs.readFile)).not.toHaveBeenCalled();
+    });
+
+    it("should reject invalid JWT format from AUTH_TOKEN", async () => {
+      process.env.AUTH_TOKEN = "invalid-token";
+
+      const status = await graphService.getAuthStatus();
+
+      expect(status.isAuthenticated).toBe(false);
+    });
+
+    it("should reject JWT without Graph audience from AUTH_TOKEN", async () => {
+      const mockPayload = btoa(JSON.stringify({ aud: "https://other-service.com" }));
+      const invalidToken = `header.${mockPayload}.signature`;
+      process.env.AUTH_TOKEN = invalidToken;
+
+      const status = await graphService.getAuthStatus();
+
+      expect(status.isAuthenticated).toBe(false);
+    });
+
+    it("should handle JWT with audience as array from AUTH_TOKEN", async () => {
+      const mockPayload = btoa(
+        JSON.stringify({ aud: ["https://graph.microsoft.com", "https://other.com"] })
+      );
+      const validToken = `header.${mockPayload}.signature`;
+      process.env.AUTH_TOKEN = validToken;
+
+      const mockClient = {
+        api: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue(mockUser),
+        }),
+      };
+
+      const { Client } = await import("@microsoft/microsoft-graph-client");
+      vi.mocked(Client.initWithMiddleware).mockReturnValue(mockClient as any);
+
+      const status = await graphService.getAuthStatus();
+
+      expect(status.isAuthenticated).toBe(true);
+    });
+
+    it("should prefer AUTH_TOKEN over file-based auth", async () => {
+      const mockPayload = btoa(JSON.stringify({ aud: "https://graph.microsoft.com" }));
+      const validToken = `header.${mockPayload}.signature`;
+      process.env.AUTH_TOKEN = validToken;
+
+      const validTokenData = JSON.stringify({
+        clientId: "test-client-id",
+        authenticated: true,
+        timestamp: new Date().toISOString(),
+        token: "different-token-from-file",
+      });
+      vi.mocked(fs.readFile).mockResolvedValue(validTokenData);
+
+      const mockClient = {
+        api: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue(mockUser),
+        }),
+      };
+
+      const { Client } = await import("@microsoft/microsoft-graph-client");
+      vi.mocked(Client.initWithMiddleware).mockReturnValue(mockClient as any);
+
+      await graphService.getAuthStatus();
+
+      // Should not read from file when AUTH_TOKEN is present
+      expect(vi.mocked(fs.readFile)).not.toHaveBeenCalled();
     });
   });
 });
