@@ -378,6 +378,160 @@ describe("Teams Tools", () => {
       expect(result.content[0].text).toContain("❌ Failed to send message: Send failed");
     });
 
+    it("should send message with @mentions", async () => {
+      const sentMessage = { ...mockChatMessage, id: "mention-message-id" };
+      const getUserResponse = { displayName: "Test User" };
+
+      mockClient.api().post.mockResolvedValue(sentMessage);
+      mockClient.api().get.mockResolvedValue(getUserResponse);
+      mockClient.api = vi.fn().mockReturnValue({
+        post: vi.fn().mockResolvedValue(sentMessage),
+        get: vi.fn().mockResolvedValue(getUserResponse),
+        select: vi.fn().mockReturnThis(),
+      });
+
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        message: "Hello @testuser!",
+        format: "text",
+        mentions: [{ mention: "@testuser", userId: "user-id-123" }],
+      });
+
+      expect(result.content[0].text).toContain("✅ Message sent successfully");
+    });
+
+    it("should handle mention user lookup failure gracefully", async () => {
+      const sentMessage = { ...mockChatMessage, id: "mention-fail-message-id" };
+
+      mockClient.api().post.mockResolvedValue(sentMessage);
+      mockClient.api = vi.fn().mockReturnValue({
+        post: vi.fn().mockResolvedValue(sentMessage),
+        get: vi.fn().mockRejectedValue(new Error("User not found")),
+        select: vi.fn().mockReturnThis(),
+      });
+
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+        // Intentionally empty to suppress console output during tests
+      });
+
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        message: "Hello @unknown!",
+        format: "text",
+        mentions: [{ mention: "@unknown", userId: "unknown-id" }],
+      });
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Could not resolve user unknown-id")
+      );
+      expect(result.content[0].text).toContain("✅ Message sent successfully");
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    it("should send message with image from URL", async () => {
+      const sentMessage = { ...mockChatMessage, id: "image-message-id" };
+      const hostedContent = { id: "hosted-id-123" };
+
+      mockClient.api().post.mockResolvedValueOnce(hostedContent).mockResolvedValueOnce(sentMessage);
+      mockClient.api = vi.fn().mockReturnValue({
+        post: vi.fn().mockResolvedValueOnce(hostedContent).mockResolvedValueOnce(sentMessage),
+        header: vi.fn().mockReturnThis(),
+      });
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(8),
+        headers: new Map([["content-type", "image/png"]]),
+      });
+
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        message: "Check this out!",
+        format: "text",
+        imageUrl: "https://example.com/image.png",
+      });
+
+      expect(result.content[0].text).toContain("✅ Message sent successfully");
+    });
+
+    it("should handle image download failure", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+      });
+
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        message: "Check this out!",
+        format: "text",
+        imageUrl: "https://example.com/missing.png",
+      });
+
+      expect(result.content[0].text).toContain("❌ Failed to download image from URL");
+      expect(result.isError).toBe(true);
+    });
+
+    it("should send message with base64 image data", async () => {
+      const sentMessage = { ...mockChatMessage, id: "base64-image-id" };
+      const hostedContent = { id: "hosted-id-456" };
+
+      mockClient.api().post.mockResolvedValueOnce(hostedContent).mockResolvedValueOnce(sentMessage);
+      mockClient.api = vi.fn().mockReturnValue({
+        post: vi.fn().mockResolvedValueOnce(hostedContent).mockResolvedValueOnce(sentMessage),
+        header: vi.fn().mockReturnThis(),
+      });
+
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        message: "Image attachment!",
+        format: "text",
+        imageData:
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        imageContentType: "image/png",
+        imageFileName: "test.png",
+      });
+
+      expect(result.content[0].text).toContain("✅ Message sent successfully");
+    });
+
+    it("should reject unsupported image types", async () => {
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        message: "Image attachment!",
+        format: "text",
+        imageData: "base64data",
+        imageContentType: "image/bmp",
+      });
+
+      expect(result.content[0].text).toContain("❌ Failed to upload image attachment");
+      expect(result.isError).toBe(true);
+    });
+
     it("should send reply with markdown format", async () => {
       const sentReply = { ...mockChatMessage, id: "markdown-reply-id" };
       mockClient.api().post.mockResolvedValue(sentReply);
@@ -609,6 +763,85 @@ describe("Teams Tools", () => {
         importance: "normal",
       });
     });
+
+    it("should reply with @mentions", async () => {
+      const sentReply = { id: "mention-reply-id" };
+      const getUserResponse = { displayName: "Mentioned User" };
+
+      mockClient.api().post.mockResolvedValue(sentReply);
+      mockClient.api = vi.fn().mockReturnValue({
+        post: vi.fn().mockResolvedValue(sentReply),
+        get: vi.fn().mockResolvedValue(getUserResponse),
+        select: vi.fn().mockReturnThis(),
+      });
+
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("reply_to_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "parent-message-id",
+        message: "Thanks @user!",
+        format: "text",
+        mentions: [{ mention: "@user", userId: "user-123" }],
+      });
+
+      expect(result.content[0].text).toContain("✅ Reply sent successfully");
+    });
+
+    it("should reply with image from URL", async () => {
+      const sentReply = { id: "image-reply-id" };
+      const hostedContent = { id: "hosted-789" };
+
+      mockClient.api().post.mockResolvedValueOnce(hostedContent).mockResolvedValueOnce(sentReply);
+      mockClient.api = vi.fn().mockReturnValue({
+        post: vi.fn().mockResolvedValueOnce(hostedContent).mockResolvedValueOnce(sentReply),
+        header: vi.fn().mockReturnThis(),
+      });
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(8),
+        headers: new Map([["content-type", "image/jpeg"]]),
+      });
+
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("reply_to_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "parent-message-id",
+        message: "See attached",
+        format: "text",
+        imageUrl: "https://example.com/reply-image.jpg",
+      });
+
+      expect(result.content[0].text).toContain("✅ Reply sent successfully");
+    });
+
+    it("should handle image upload failure in reply", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+      });
+
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("reply_to_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "parent-message-id",
+        message: "Failed image",
+        format: "text",
+        imageUrl: "https://example.com/broken.jpg",
+      });
+
+      expect(result.content[0].text).toContain("❌ Failed to download image from URL");
+      expect(result.isError).toBe(true);
+    });
   });
 
   describe("list_team_members tool", () => {
@@ -802,6 +1035,113 @@ describe("Teams Tools", () => {
 
       const response = JSON.parse(result.content[0].text);
       expect(response.messages[0].from).toBeUndefined();
+    });
+  });
+
+  describe("search_users_for_mentions tool", () => {
+    it("should register search_users_for_mentions tool with correct schema", () => {
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("search_users_for_mentions");
+      expect(tool).toBeDefined();
+      expect(tool.schema.query).toBeDefined();
+      expect(tool.schema.limit).toBeDefined();
+    });
+
+    it("should search for users", async () => {
+      const usersResponse = {
+        value: [
+          {
+            id: "user-1",
+            displayName: "John Doe",
+            userPrincipalName: "john.doe@example.com",
+          },
+          {
+            id: "user-2",
+            displayName: "Jane Smith",
+            userPrincipalName: "jane.smith@example.com",
+          },
+        ],
+      };
+
+      mockClient.api().get.mockResolvedValue(usersResponse);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("search_users_for_mentions");
+      const result = await tool.handler({ query: "john" });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.totalResults).toBe(2);
+      expect(response.users[0].displayName).toBe("John Doe");
+      expect(response.users[0].mentionText).toBe("john.doe");
+    });
+
+    it("should handle no users found", async () => {
+      mockClient.api().get.mockResolvedValue({ value: [] });
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("search_users_for_mentions");
+      const result = await tool.handler({ query: "nonexistent" });
+
+      expect(result.content[0].text).toContain('No users found matching "nonexistent"');
+    });
+
+    it("should handle search errors gracefully", async () => {
+      mockClient.api().get.mockRejectedValue(new Error("Search failed"));
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("search_users_for_mentions");
+      const result = await tool.handler({ query: "test" });
+
+      // searchUsers catches errors and returns empty array, so "No users found" is expected
+      expect(result.content[0].text).toContain('No users found matching "test"');
+    });
+  });
+
+  describe("download_message_hosted_content tool", () => {
+    it("should register download_message_hosted_content tool with correct schema", () => {
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("download_message_hosted_content");
+      expect(tool).toBeDefined();
+      expect(tool.schema.teamId).toBeDefined();
+      expect(tool.schema.channelId).toBeDefined();
+      expect(tool.schema.messageId).toBeDefined();
+    });
+
+    it("should handle message not found", async () => {
+      mockClient.api().get.mockResolvedValue(null);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("download_message_hosted_content");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "invalid-msg",
+      });
+
+      expect(result.content[0].text).toContain("❌ Message not found");
+      expect(result.isError).toBe(true);
+    });
+
+    it("should handle no attachments in message", async () => {
+      const message = {
+        id: "msg-1",
+        body: { content: "Plain text message" },
+      };
+
+      mockClient.api().get.mockResolvedValue(message);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("download_message_hosted_content");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-1",
+      });
+
+      expect(result.content[0].text).toContain("❌ No hosted content found");
+      expect(result.isError).toBe(true);
     });
   });
 });

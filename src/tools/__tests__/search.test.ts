@@ -162,6 +162,50 @@ describe("Search Tools", () => {
       });
     });
 
+    it("should apply chats scope filter", async () => {
+      const mockSearchResponse = {
+        value: [
+          {
+            hitsContainers: [
+              {
+                hits: [
+                  {
+                    rank: 1,
+                    summary: "Chat message",
+                    resource: {
+                      id: "msg1",
+                      body: { content: "Hello in chat" },
+                      from: { user: { displayName: "John Doe" } },
+                      createdDateTime: "2023-01-01T10:00:00Z",
+                      chatId: "chat123",
+                    },
+                  },
+                ],
+                total: 1,
+                moreResultsAvailable: false,
+              },
+            ],
+          },
+        ],
+      };
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(mockSearchResponse),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const _result = await searchMessagesHandler({
+        query: "test",
+        scope: "chats",
+      });
+
+      expect(mockApiChain.post).toHaveBeenCalled();
+      const postCall = mockApiChain.post.mock.calls[0][0];
+      expect(postCall.requests[0].query.queryString).toContain(
+        "chatId:* AND NOT channelIdentity/channelId:*"
+      );
+    });
+
     it("should handle no search results", async () => {
       const mockSearchResponse = {
         value: [],
@@ -248,6 +292,271 @@ describe("Search Tools", () => {
       const parsedResponse = JSON.parse(result.content[0].text);
       expect(parsedResponse.method).toBe("search_api");
       expect(parsedResponse.messages).toHaveLength(1);
+    });
+
+    it("should use mentionsUser filter in search", async () => {
+      const mockSearchResponse = {
+        value: [
+          {
+            hitsContainers: [
+              {
+                hits: [
+                  {
+                    resource: {
+                      id: "msg1",
+                      body: { content: "Message with mention" },
+                      from: { user: { displayName: "User", id: "user1" } },
+                      createdDateTime: new Date().toISOString(),
+                    },
+                    rank: 1,
+                    summary: "Mentioned message",
+                  },
+                ],
+                total: 1,
+                moreResultsAvailable: false,
+              },
+            ],
+          },
+        ],
+      };
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(mockSearchResponse),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const _result = await getRecentMessagesHandler({
+        hours: 24,
+        mentionsUser: "user-123",
+      });
+
+      expect(mockApiChain.post).toHaveBeenCalled();
+      const postCall = mockApiChain.post.mock.calls[0][0];
+      expect(postCall.requests[0].query.queryString).toContain("mentions:user-123");
+    });
+
+    it("should use hasAttachments filter in search", async () => {
+      const mockSearchResponse = {
+        value: [
+          {
+            hitsContainers: [
+              {
+                hits: [
+                  {
+                    resource: {
+                      id: "msg1",
+                      body: { content: "Message with attachment" },
+                      from: { user: { displayName: "User", id: "user1" } },
+                      createdDateTime: new Date().toISOString(),
+                    },
+                    rank: 1,
+                    summary: "Message with file",
+                  },
+                ],
+                total: 1,
+                moreResultsAvailable: false,
+              },
+            ],
+          },
+        ],
+      };
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(mockSearchResponse),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const _result = await getRecentMessagesHandler({
+        hours: 24,
+        hasAttachments: true,
+      });
+
+      expect(mockApiChain.post).toHaveBeenCalled();
+      const postCall = mockApiChain.post.mock.calls[0][0];
+      expect(postCall.requests[0].query.queryString).toContain("hasAttachment:true");
+    });
+
+    it("should use importance filter in search", async () => {
+      const mockSearchResponse = {
+        value: [
+          {
+            hitsContainers: [
+              {
+                hits: [
+                  {
+                    resource: {
+                      id: "msg1",
+                      body: { content: "Important message" },
+                      from: { user: { displayName: "User", id: "user1" } },
+                      createdDateTime: new Date().toISOString(),
+                    },
+                    rank: 1,
+                    summary: "Urgent message",
+                  },
+                ],
+                total: 1,
+                moreResultsAvailable: false,
+              },
+            ],
+          },
+        ],
+      };
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(mockSearchResponse),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const _result = await getRecentMessagesHandler({
+        hours: 24,
+        importance: "urgent",
+      });
+
+      expect(mockApiChain.post).toHaveBeenCalled();
+      const postCall = mockApiChain.post.mock.calls[0][0];
+      expect(postCall.requests[0].query.queryString).toContain("importance:urgent");
+    });
+
+    it("should use fromUser filter in search", async () => {
+      const mockSearchResponse = {
+        value: [
+          {
+            hitsContainers: [
+              {
+                hits: [
+                  {
+                    resource: {
+                      id: "msg1",
+                      body: { content: "Message from specific user" },
+                      from: { user: { displayName: "John Doe", id: "user1" } },
+                      createdDateTime: new Date().toISOString(),
+                    },
+                    rank: 1,
+                    summary: "User message",
+                  },
+                ],
+                total: 1,
+                moreResultsAvailable: false,
+              },
+            ],
+          },
+        ],
+      };
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(mockSearchResponse),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const _result = await getRecentMessagesHandler({
+        hours: 24,
+        keywords: "test",
+        fromUser: "john.doe@example.com",
+      });
+
+      expect(mockApiChain.post).toHaveBeenCalled();
+      const postCall = mockApiChain.post.mock.calls[0][0];
+      expect(postCall.requests[0].query.queryString).toContain("from:john.doe@example.com");
+    });
+
+    it("should filter by includeChannels flag", async () => {
+      const mockSearchResponse = {
+        value: [
+          {
+            hitsContainers: [
+              {
+                hits: [
+                  {
+                    resource: {
+                      id: "msg1",
+                      body: { content: "Channel message" },
+                      from: { user: { displayName: "User", id: "user1" } },
+                      createdDateTime: new Date().toISOString(),
+                      channelIdentity: { channelId: "channel1", teamId: "team1" },
+                    },
+                    rank: 1,
+                    summary: "Channel message",
+                  },
+                  {
+                    resource: {
+                      id: "msg2",
+                      body: { content: "Chat message" },
+                      from: { user: { displayName: "User", id: "user1" } },
+                      createdDateTime: new Date().toISOString(),
+                      chatId: "chat1",
+                    },
+                    rank: 2,
+                    summary: "Chat message",
+                  },
+                ],
+                total: 2,
+                moreResultsAvailable: false,
+              },
+            ],
+          },
+        ],
+      };
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(mockSearchResponse),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await getRecentMessagesHandler({
+        hours: 24,
+        keywords: "test",
+        includeChannels: false,
+        includeChats: true,
+      });
+
+      const parsedResponse = JSON.parse(result.content[0].text);
+      // Only chat message should be included
+      expect(parsedResponse.messages.length).toBe(1);
+      expect(parsedResponse.messages[0].id).toBe("msg2");
+    });
+
+    it("should include teamIds parameter in search context", async () => {
+      const mockSearchResponse = {
+        value: [
+          {
+            hitsContainers: [
+              {
+                hits: [
+                  {
+                    resource: {
+                      id: "msg1",
+                      body: { content: "Team 1 message" },
+                      from: { user: { displayName: "User", id: "user1" } },
+                      createdDateTime: new Date().toISOString(),
+                      channelIdentity: { channelId: "channel1", teamId: "team1" },
+                    },
+                    rank: 1,
+                    summary: "Team 1 message",
+                  },
+                ],
+                total: 1,
+                moreResultsAvailable: false,
+              },
+            ],
+          },
+        ],
+      };
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(mockSearchResponse),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await getRecentMessagesHandler({
+        hours: 24,
+        keywords: "message",
+        teamIds: ["team1"],
+      });
+
+      // Verify the advanced search was called
+      expect(mockApiChain.post).toHaveBeenCalled();
+      const parsedResponse = JSON.parse(result.content[0].text);
+      expect(parsedResponse.method).toBe("search_api");
     });
 
     it("should fall back to basic search when advanced search fails", async () => {
