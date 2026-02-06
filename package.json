@@ -1,6 +1,6 @@
 {
   "name": "@floriscornel/teams-mcp",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "MCP server for Microsoft Graph Teams integration",
   "type": "module",
   "main": "dist/index.js",
