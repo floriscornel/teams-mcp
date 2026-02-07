@@ -1,6 +1,6 @@
 {
   "name": "@floriscornel/teams-mcp",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "MCP server for Microsoft Graph Teams integration",
   "type": "module",
   "main": "dist/index.js",
@@ -28,9 +28,9 @@
     "test:coverage": "vitest run --coverage",
     "test:coverage:ci": "vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=test-results.xml",
     "test:ui": "vitest --ui",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write --unsafe .",
-    "format": "biome format --write .",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --write --unsafe src/",
+    "format": "biome format --write src/",
     "bump": "npx npm-check-updates -i",
     "prepublishOnly": "npm run build"
   },

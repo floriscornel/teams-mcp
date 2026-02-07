@@ -69,7 +69,7 @@ async function authenticate() {
     });
 
     if (result) {
-      // Save authentication info (for quick status checks)
+      // Save authentication info (for quick status checks via CLI)
       const authInfo = {
         clientId: CLIENT_ID,
         authenticated: true,
@@ -162,7 +162,7 @@ async function startMcpServer() {
   // Create MCP server
   const server = new McpServer({
     name: "teams-mcp",
-    version: "0.4.1",
+    version: "0.5.0",
   });
 
   // Initialize Graph service (singleton)

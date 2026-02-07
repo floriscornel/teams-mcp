@@ -34,13 +34,7 @@ export default defineConfig({
     hookTimeout: 10000,
     // Isolate tests to prevent interference
     isolate: true,
-    // Pool options for better performance
+    // Use threads pool for better performance
     pool: "threads",
-    poolOptions: {
-      threads: {
-        // Enable parallelization for better performance
-        // Tests are properly isolated so this should be safe
-      },
-    },
   },
 });

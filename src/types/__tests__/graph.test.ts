@@ -6,9 +6,7 @@ import type {
   GraphApiResponse,
   GraphError,
   MemberSummary,
-  MessageFilterOptions,
   MessageSummary,
-  RecentMessagesOptions,
   SearchHit,
   SearchRequest,
   SearchResponse,
@@ -287,6 +285,8 @@ describe("Graph Types", () => {
             content: "Hello world",
             contentType: "text",
           },
+          importance: "normal",
+          webLink: "https://teams.microsoft.com/msg123",
           chatId: "chat123",
           channelIdentity: {
             teamId: "team123",
@@ -299,51 +299,8 @@ describe("Graph Types", () => {
       expect(hit.rank).toBe(1);
       expect(hit.resource.id).toBe("msg123");
       expect(hit.resource.from?.user?.displayName).toBe("John Doe");
-    });
-  });
-
-  describe("MessageFilterOptions", () => {
-    it("should define filter options", () => {
-      const options: MessageFilterOptions = {
-        limit: 50,
-        since: "2023-01-01T00:00:00Z",
-        until: "2023-01-02T00:00:00Z",
-        fromUser: "user123",
-        mentionsUser: "user456",
-        hasAttachments: true,
-        importance: "high",
-        search: "hello",
-        orderBy: "createdDateTime",
-      };
-
-      expect(options.limit).toBe(50);
-      expect(options.since).toBe("2023-01-01T00:00:00Z");
-      expect(options.hasAttachments).toBe(true);
-    });
-
-    it("should work with empty options", () => {
-      const options: MessageFilterOptions = {};
-      expect(options).toBeDefined();
-    });
-  });
-
-  describe("RecentMessagesOptions", () => {
-    it("should extend MessageFilterOptions", () => {
-      const options: RecentMessagesOptions = {
-        limit: 25,
-        includeChannels: true,
-        includeChats: false,
-        teamIds: ["team1", "team2"],
-        chatIds: ["chat1", "chat2"],
-        fromUser: "user123",
-      };
-
-      expect(options.limit).toBe(25);
-      expect(options.includeChannels).toBe(true);
-      expect(options.includeChats).toBe(false);
-      expect(options.teamIds).toEqual(["team1", "team2"]);
-      expect(options.chatIds).toEqual(["chat1", "chat2"]);
-      expect(options.fromUser).toBe("user123");
+      expect(hit.resource.importance).toBe("normal");
+      expect(hit.resource.webLink).toBe("https://teams.microsoft.com/msg123");
     });
   });
 });
