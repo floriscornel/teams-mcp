@@ -1,7 +1,21 @@
-import { promises as fs } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { type AccountInfo, PublicClientApplication } from "@azure/msal-node";
 import { Client } from "@microsoft/microsoft-graph-client";
+import { cachePlugin } from "../msal-cache.js";
+
+const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
+const AUTHORITY = "https://login.microsoftonline.com/common";
+
+const DELEGATED_SCOPES = [
+  "User.Read",
+  "User.ReadBasic.All",
+  "Team.ReadBasic.All",
+  "Channel.ReadBasic.All",
+  "ChannelMessage.Read.All",
+  "ChannelMessage.Send",
+  "TeamMember.Read.All",
+  "Chat.ReadBasic",
+  "Chat.ReadWrite",
+];
 
 export interface AuthStatus {
   isAuthenticated: boolean;
@@ -10,20 +24,13 @@ export interface AuthStatus {
   expiresAt?: string | undefined;
 }
 
-interface StoredAuthInfo {
-  clientId?: string;
-  authenticated: boolean;
-  timestamp: string;
-  expiresAt?: string;
-  token?: string;
-}
-
 export class GraphService {
   private static instance: GraphService;
   private client: Client | undefined;
-  private readonly authPath = join(homedir(), ".msgraph-mcp-auth.json");
   private isInitialized = false;
-  private authInfo: StoredAuthInfo | undefined;
+  private tokenExpiresAt: Date | undefined;
+  private msalApp: PublicClientApplication | undefined;
+  private msalAccount: AccountInfo | undefined;
 
   static getInstance(): GraphService {
     if (!GraphService.instance) {
@@ -36,37 +43,82 @@ export class GraphService {
     if (this.isInitialized) return;
 
     try {
-      this.authInfo = await this.getAuthInfo();
-
-      if (this.authInfo?.authenticated && this.authInfo?.token) {
-        // Check if token is expired
-        if (this.authInfo.expiresAt) {
-          const expiresAt = new Date(this.authInfo.expiresAt);
-          if (expiresAt <= new Date()) {
-            console.log(
-              "Token has expired. Please re-authenticate with: npx @floriscornel/teams-mcp@latest authenticate"
-            );
-            return;
-          }
-        }
-
-        // Create Graph client with the saved token
-        this.client = Client.initWithMiddleware({
-          authProvider: {
-            getAccessToken: async () => {
-              if (!this.authInfo?.token) {
-                throw new Error("No token available");
-              }
-              return this.authInfo.token;
+      // Priority 1: AUTH_TOKEN environment variable (direct token injection)
+      const envToken = process.env.AUTH_TOKEN;
+      if (envToken) {
+        const validatedToken = this.validateToken(envToken);
+        if (validatedToken) {
+          this.client = Client.initWithMiddleware({
+            authProvider: {
+              getAccessToken: async () => validatedToken,
             },
-          },
-        });
-
-        this.isInitialized = true;
+          });
+          this.isInitialized = true;
+        }
+        return;
       }
+
+      // Priority 2: MSAL with cached refresh token for automatic token renewal
+      this.msalApp = new PublicClientApplication({
+        auth: {
+          clientId: CLIENT_ID,
+          authority: AUTHORITY,
+        },
+        cache: {
+          cachePlugin,
+        },
+      });
+
+      const accounts = await this.msalApp.getTokenCache().getAllAccounts();
+      if (accounts.length === 0) {
+        return;
+      }
+
+      this.msalAccount = accounts[0];
+
+      // Verify we can acquire a token
+      const result = await this.msalApp.acquireTokenSilent({
+        scopes: DELEGATED_SCOPES,
+        account: this.msalAccount,
+      });
+
+      if (!result) {
+        return;
+      }
+
+      this.tokenExpiresAt = result.expiresOn ?? undefined;
+
+      // Create Graph client with MSAL-backed auth provider for automatic token refresh
+      this.client = Client.initWithMiddleware({
+        authProvider: {
+          getAccessToken: () => this.acquireToken(),
+        },
+      });
+
+      this.isInitialized = true;
     } catch (error) {
       console.error("Failed to initialize Graph client:", error);
     }
+  }
+
+  private async acquireToken(): Promise<string> {
+    if (!this.msalApp || !this.msalAccount) {
+      throw new Error("MSAL not initialized");
+    }
+
+    const result = await this.msalApp.acquireTokenSilent({
+      scopes: DELEGATED_SCOPES,
+      account: this.msalAccount,
+    });
+
+    if (!result) {
+      throw new Error(
+        "Failed to acquire access token. Please re-authenticate: npx @floriscornel/teams-mcp@latest authenticate"
+      );
+    }
+
+    this.tokenExpiresAt = result.expiresOn ?? undefined;
+    return result.accessToken;
   }
 
   async getAuthStatus(): Promise<AuthStatus> {
@@ -82,7 +134,7 @@ export class GraphService {
         isAuthenticated: true,
         userPrincipalName: me?.userPrincipalName ?? undefined,
         displayName: me?.displayName ?? undefined,
-        expiresAt: this.authInfo?.expiresAt,
+        expiresAt: this.tokenExpiresAt?.toISOString(),
       };
     } catch (error) {
       console.error("Error getting user info:", error);
@@ -114,7 +166,6 @@ export class GraphService {
 
     try {
       const payload = JSON.parse(atob(tokenSplits[1]));
-      // aud can be a string or an array
       const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
       if (!audiences.includes("https://graph.microsoft.com")) {
         console.error("Invalid JWT token: Not a valid Microsoft Graph token");
@@ -126,34 +177,5 @@ export class GraphService {
     }
 
     return token;
-  }
-
-  async getAuthInfo(): Promise<StoredAuthInfo> {
-    const authToken = process.env.AUTH_TOKEN;
-    if (authToken) {
-      return this.validateToken(authToken)
-        ? {
-            authenticated: true,
-            timestamp: new Date().toISOString(),
-            token: authToken,
-          }
-        : {
-            authenticated: false,
-            timestamp: new Date().toISOString(),
-            token: "",
-          };
-    }
-
-    try {
-      const authData = await fs.readFile(this.authPath, "utf8");
-      return JSON.parse(authData);
-    } catch (error) {
-      console.error(`Error reading auth info from '${this.authPath}':`, error);
-      return {
-        authenticated: false,
-        timestamp: new Date().toISOString(),
-        token: "",
-      };
-    }
   }
 }

@@ -159,30 +159,12 @@ export interface SearchHit {
       contentType?: string;
     };
     subject?: string;
+    importance?: string;
+    webLink?: string;
     chatId?: string;
     channelIdentity?: {
       teamId?: string;
       channelId?: string;
     };
   };
-}
-
-// Enhanced message filtering options
-export interface MessageFilterOptions {
-  limit?: number;
-  since?: string;
-  until?: string;
-  fromUser?: string;
-  mentionsUser?: string;
-  hasAttachments?: boolean;
-  importance?: ChatMessageImportance;
-  search?: string;
-  orderBy?: string;
-}
-
-export interface RecentMessagesOptions extends MessageFilterOptions {
-  includeChannels?: boolean;
-  includeChats?: boolean;
-  teamIds?: string[];
-  chatIds?: string[];
 }
