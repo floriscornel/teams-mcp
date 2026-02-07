@@ -561,9 +561,7 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
         // Update the message using PATCH
         // Note: Using /me/chats/ endpoint for delegated permissions
         // The API also requires proper permissions: Chat.ReadWrite
-        await client
-          .api(`/me/chats/${chatId}/messages/${messageId}`)
-          .patch(messagePayload);
+        await client.api(`/me/chats/${chatId}/messages/${messageId}`).patch(messagePayload);
 
         // Build success message
         const successText = `✅ Message updated successfully. Message ID: ${messageId}${

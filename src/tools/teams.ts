@@ -1111,7 +1111,15 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
         .optional()
         .describe("Array of @mentions to include in the message"),
     },
-    async ({ teamId, channelId, messageId, message, importance = "normal", format = "text", mentions }) => {
+    async ({
+      teamId,
+      channelId,
+      messageId,
+      message,
+      importance = "normal",
+      format = "text",
+      mentions,
+    }) => {
       try {
         const client = await graphService.getClient();
 
