@@ -1,0 +1,594 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="238" failures="0" errors="0" time="1.049093036">
+    <testsuite name="src/__tests__/index.test.ts" timestamp="2026-02-07T13:31:27.200Z" hostname="code-server" tests="18" failures="0" errors="0" skipped="17" time="0.535359709">
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; CLI Commands &gt; should handle help command" time="0.52944004">
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; CLI Commands &gt; should handle help variants" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; CLI Commands &gt; should handle unknown command" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; CLI Commands &gt; Authentication Commands &gt; should handle authenticate command" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; CLI Commands &gt; Authentication Commands &gt; should handle auth alias" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; CLI Commands &gt; Authentication Commands &gt; should handle check command when authenticated" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; CLI Commands &gt; Authentication Commands &gt; should handle check command when not authenticated" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; CLI Commands &gt; Authentication Commands &gt; should handle logout command" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; CLI Commands &gt; Authentication Commands &gt; should handle logout command when no auth file exists" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; MCP Server Mode &gt; should start MCP server when no command provided" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; MCP Server Mode &gt; should register all expected tools" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; Configuration &gt; should use correct client ID" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; Configuration &gt; should use correct token path" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; Error Handling &gt; should handle authentication errors gracefully" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; Error Handling &gt; should handle file system errors in check command" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; Error Handling &gt; should handle file system errors in logout command" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; Token Management &gt; should save token after successful authentication" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/__tests__/index.test.ts" name="MCP Server Integration &gt; Token Management &gt; should handle expired tokens in check command" time="0">
+            <skipped/>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/__tests__/msal-cache.test.ts" timestamp="2026-02-07T13:31:27.203Z" hostname="code-server" tests="7" failures="0" errors="0" skipped="0" time="0.018425959">
+        <testcase classname="src/__tests__/msal-cache.test.ts" name="MSAL Cache Plugin &gt; beforeCacheAccess &gt; should deserialize cache data from file when it exists" time="0.005569384">
+        </testcase>
+        <testcase classname="src/__tests__/msal-cache.test.ts" name="MSAL Cache Plugin &gt; beforeCacheAccess &gt; should handle missing cache file (ENOENT) silently" time="0.001856451">
+        </testcase>
+        <testcase classname="src/__tests__/msal-cache.test.ts" name="MSAL Cache Plugin &gt; beforeCacheAccess &gt; should log error for other file read failures" time="0.001254089">
+        </testcase>
+        <testcase classname="src/__tests__/msal-cache.test.ts" name="MSAL Cache Plugin &gt; afterCacheAccess &gt; should serialize and write cache data when cache has changed" time="0.000721121">
+        </testcase>
+        <testcase classname="src/__tests__/msal-cache.test.ts" name="MSAL Cache Plugin &gt; afterCacheAccess &gt; should not write cache data when cache has not changed" time="0.000473318">
+        </testcase>
+        <testcase classname="src/__tests__/msal-cache.test.ts" name="MSAL Cache Plugin &gt; afterCacheAccess &gt; should log error when cache write fails" time="0.000798597">
+        </testcase>
+        <testcase classname="src/__tests__/msal-cache.test.ts" name="MSAL Cache Plugin &gt; CACHE_PATH &gt; should export CACHE_PATH" time="0.000872534">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/services/__tests__/graph.test.ts" timestamp="2026-02-07T13:31:27.203Z" hostname="code-server" tests="18" failures="0" errors="0" skipped="0" time="0.020081969">
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; getInstance &gt; should return singleton instance" time="0.001772518">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; getAuthStatus &gt; should return unauthenticated when no MSAL accounts exist" time="0.00131221">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; getAuthStatus &gt; should return unauthenticated when acquireTokenSilent fails" time="0.000635481">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; getAuthStatus &gt; should return unauthenticated when acquireTokenSilent returns null" time="0.000445968">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; getAuthStatus &gt; should return authenticated status with valid MSAL token" time="0.000682769">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; getAuthStatus &gt; should handle Graph API errors gracefully" time="0.002955054">
+            <system-err>
+Error getting user info: Error: API Error
+    at [90m/home/floris/projects/teams-mcp/[39msrc/services/__tests__/graph.test.ts:140:42
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (&lt;anonymous&gt;)
+    at runWithTimeout [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+    at trace [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4mvitest[24m/dist/chunks/test.B8ej_ZHS.js:239:21[90m)[39m
+    at runTest [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:12[90m)[39m
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; getClient &gt; should throw error when not authenticated" time="0.001929434">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; getClient &gt; should return client when authenticated" time="0.00058025">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; isAuthenticated &gt; should return false when not initialized" time="0.000350298">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; isAuthenticated &gt; should return true when client is initialized" time="0.00044177">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; MSAL token refresh &gt; should use acquireTokenSilent for auth provider" time="0.002314058">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; MSAL token refresh &gt; should pass auth provider that calls acquireTokenSilent" time="0.000615302">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; concurrent initialization &gt; should handle concurrent calls to getAuthStatus" time="0.000525674">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; AUTH_TOKEN environment variable &gt; should use AUTH_TOKEN from environment when provided" time="0.000621686">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; AUTH_TOKEN environment variable &gt; should reject invalid JWT format from AUTH_TOKEN" time="0.000606643">
+            <system-err>
+Invalid JWT token: missing claims
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; AUTH_TOKEN environment variable &gt; should reject JWT without Graph audience from AUTH_TOKEN" time="0.000539421">
+            <system-err>
+Invalid JWT token: Not a valid Microsoft Graph token
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; AUTH_TOKEN environment variable &gt; should handle JWT with audience as array from AUTH_TOKEN" time="0.000419535">
+        </testcase>
+        <testcase classname="src/services/__tests__/graph.test.ts" name="GraphService &gt; AUTH_TOKEN environment variable &gt; should prefer AUTH_TOKEN over MSAL-based auth" time="0.000365973">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/types/__tests__/graph.test.ts" timestamp="2026-02-07T13:31:27.205Z" hostname="code-server" tests="18" failures="0" errors="0" skipped="0" time="0.009784285">
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; GraphApiResponse &gt; should define the correct structure" time="0.002760061">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; GraphApiResponse &gt; should allow optional properties" time="0.000377163">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; GraphError &gt; should define the correct structure" time="0.000154887">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; UserSummary &gt; should allow all optional properties" time="0.000121376">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; UserSummary &gt; should allow empty object" time="0.000085373">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; TeamSummary &gt; should define team properties" time="0.000115271">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; ChannelSummary &gt; should define channel properties" time="0.000139958">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; ChatSummary &gt; should define chat properties" time="0.000191371">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; MessageSummary &gt; should define message properties" time="0.000153158">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; MemberSummary &gt; should define member properties" time="0.000597774">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; CreateChatPayload &gt; should define chat creation structure" time="0.000193068">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; CreateChatPayload &gt; should work without optional topic" time="0.000085343">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; SendMessagePayload &gt; should define message sending structure" time="0.000083989">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; SendMessagePayload &gt; should work without optional importance" time="0.000065131">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; SearchRequest &gt; should define search request structure" time="0.000128442">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; SearchRequest &gt; should work with minimal required properties" time="0.0000772">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; SearchResponse &gt; should define search response structure" time="0.000145519">
+        </testcase>
+        <testcase classname="src/types/__tests__/graph.test.ts" name="Graph Types &gt; SearchHit &gt; should define search hit structure" time="0.00022914">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/utils/__tests__/attachments.test.ts" timestamp="2026-02-07T13:31:27.206Z" hostname="code-server" tests="14" failures="0" errors="0" skipped="0" time="0.049591273">
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; uploadImageAsHostedContent &gt; should upload image data successfully" time="0.004052923">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; uploadImageAsHostedContent &gt; should upload buffer data successfully" time="0.001178448">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; uploadImageAsHostedContent &gt; should handle upload errors" time="0.003447725">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; isValidImageType &gt; should validate common image types" time="0.001323621">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; isValidImageType &gt; should reject invalid image types" time="0.000586382">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; isValidImageType &gt; should handle case insensitive validation" time="0.000537419">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; getFileExtensionFromMimeType &gt; should return correct extensions for image types" time="0.000690584">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; getFileExtensionFromMimeType &gt; should return default extension for unknown types" time="0.000582583">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; getFileExtensionFromMimeType &gt; should handle case insensitive mime types" time="0.000548519">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; imageUrlToBase64 &gt; should convert image URL to base64" time="0.017354751">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; imageUrlToBase64 &gt; should handle fetch errors" time="0.004041652">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; imageUrlToBase64 &gt; should reject unsupported content types" time="0.003048788">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; imageUrlToBase64 &gt; should use default content type when header is missing" time="0.002523063">
+        </testcase>
+        <testcase classname="src/utils/__tests__/attachments.test.ts" name="Attachment Utilities &gt; imageUrlToBase64 &gt; should handle network errors" time="0.005831511">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/utils/__tests__/markdown.test.ts" timestamp="2026-02-07T13:31:27.206Z" hostname="code-server" tests="17" failures="0" errors="0" skipped="0" time="0.063150013">
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should convert basic markdown to HTML" time="0.022814409">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should handle links" time="0.005980975">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should handle lists" time="0.003043403">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should handle code blocks" time="0.002256407">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should handle inline code" time="0.00134038">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should convert line breaks" time="0.001459493">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should handle headings" time="0.001866161">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should sanitize potentially dangerous HTML" time="0.002224514">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should handle empty string" time="0.001228964">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="markdownToHtml &gt; should handle plain text" time="0.000958002">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="sanitizeHtml &gt; should allow safe HTML tags" time="0.0010123">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="sanitizeHtml &gt; should remove script tags" time="0.001116121">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="sanitizeHtml &gt; should allow links with safe attributes" time="0.000981964">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="sanitizeHtml &gt; should remove dangerous attributes" time="0.011833462">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="sanitizeHtml &gt; should allow images with safe attributes" time="0.001271736">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="sanitizeHtml &gt; should handle empty string" time="0.000573473">
+        </testcase>
+        <testcase classname="src/utils/__tests__/markdown.test.ts" name="sanitizeHtml &gt; should handle plain text" time="0.000112603">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/utils/__tests__/users.test.ts" timestamp="2026-02-07T13:31:27.207Z" hostname="code-server" tests="16" failures="0" errors="0" skipped="0" time="0.013995738">
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; searchUsers &gt; should search users by display name" time="0.003925647">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; searchUsers &gt; should return empty array when no users found" time="0.000365434">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; searchUsers &gt; should handle errors gracefully" time="0.002062449">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; getUserByEmail &gt; should get user by email" time="0.000296707">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; getUserByEmail &gt; should return null when user not found" time="0.00020153">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; getUserById &gt; should get user by ID" time="0.000258725">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; getUserById &gt; should return null when user not found" time="0.000149681">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; parseMentions &gt; should parse simple @mentions" time="0.000344584">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; parseMentions &gt; should parse email @mentions" time="0.000201211">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; parseMentions &gt; should parse quoted @mentions" time="0.000152914">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; parseMentions &gt; should handle multiple @mentions" time="0.000650561">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; parseMentions &gt; should return empty array when no mentions found" time="0.000118028">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; processMentionsInHtml &gt; should process @mentions in HTML content" time="0.000318875">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; processMentionsInHtml &gt; should process quoted @mentions in HTML content" time="0.000189328">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; processMentionsInHtml &gt; should handle multiple @mentions" time="0.000200074">
+        </testcase>
+        <testcase classname="src/utils/__tests__/users.test.ts" name="User Utilities &gt; processMentionsInHtml &gt; should return unchanged content when no mappings provided" time="0.00010271">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tools/__tests__/auth.test.ts" timestamp="2026-02-07T13:31:27.208Z" hostname="code-server" tests="9" failures="0" errors="0" skipped="0" time="0.020086991">
+        <testcase classname="src/tools/__tests__/auth.test.ts" name="Authentication Tools &gt; auth_status tool &gt; should register auth_status tool correctly" time="0.003978664">
+        </testcase>
+        <testcase classname="src/tools/__tests__/auth.test.ts" name="Authentication Tools &gt; auth_status tool &gt; should return authenticated status when user is authenticated" time="0.000975594">
+        </testcase>
+        <testcase classname="src/tools/__tests__/auth.test.ts" name="Authentication Tools &gt; auth_status tool &gt; should return unauthenticated status when user is not authenticated" time="0.000855062">
+        </testcase>
+        <testcase classname="src/tools/__tests__/auth.test.ts" name="Authentication Tools &gt; auth_status tool &gt; should handle partial authentication data gracefully" time="0.000550089">
+        </testcase>
+        <testcase classname="src/tools/__tests__/auth.test.ts" name="Authentication Tools &gt; auth_status tool &gt; should handle authentication status errors" time="0.002999296">
+        </testcase>
+        <testcase classname="src/tools/__tests__/auth.test.ts" name="Authentication Tools &gt; auth_status tool &gt; should handle null/undefined user data" time="0.000564946">
+        </testcase>
+        <testcase classname="src/tools/__tests__/auth.test.ts" name="Authentication Tools &gt; tool registration &gt; should register all expected authentication tools" time="0.001604196">
+        </testcase>
+        <testcase classname="src/tools/__tests__/auth.test.ts" name="Authentication Tools &gt; tool registration &gt; should handle GraphService being undefined" time="0.002441071">
+        </testcase>
+        <testcase classname="src/tools/__tests__/auth.test.ts" name="Authentication Tools &gt; authentication state changes &gt; should reflect real-time authentication status changes" time="0.000707449">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tools/__tests__/chats.test.ts" timestamp="2026-02-07T13:31:27.209Z" hostname="code-server" tests="31" failures="0" errors="0" skipped="0" time="0.090217392">
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; registerChatTools &gt; should register all chat tools" time="0.008494433">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; list_chats &gt; should return chat list successfully" time="0.0021198">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; list_chats &gt; should handle no chats found" time="0.001128032">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; list_chats &gt; should handle null response" time="0.000995555">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; list_chats &gt; should handle errors gracefully" time="0.001095242">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; list_chats &gt; should handle unknown errors" time="0.000984597">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; should get chat messages with default parameters" time="0.00166634">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; should apply all filtering options" time="0.001229227">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; should reject ascending order for datetime fields" time="0.001032592">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; should apply client-side date filtering" time="0.001588416">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; should handle messages without createdDateTime in date filtering" time="0.002483458">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; should handle no messages found" time="0.001816417">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; should handle errors" time="0.001623262">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; pagination &gt; should fetch single page when fetchAll is false" time="0.00200899">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; pagination &gt; should fetch multiple pages when fetchAll is true" time="0.010482421">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; pagination &gt; should stop fetching when limit is reached" time="0.00213724">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; pagination &gt; should stop pagination when no nextLink is present" time="0.00171633">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; pagination &gt; should handle pagination errors gracefully" time="0.005812984">
+            <system-err>
+Error fetching page 1: Error: Network error
+    at [90m/home/floris/projects/teams-mcp/[39msrc/tools/__tests__/chats.test.ts:508:42
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (&lt;anonymous&gt;)
+    at runWithTimeout [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+    at trace [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4mvitest[24m/dist/chunks/test.B8ej_ZHS.js:239:21[90m)[39m
+    at runTest [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:12[90m)[39m
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; pagination &gt; should use smaller page size when fetchAll is true" time="0.001025196">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; get_chat_messages &gt; pagination &gt; should use limit as page size when fetchAll is false and limit is small" time="0.000906842">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; send_chat_message &gt; should send message with default importance" time="0.001340433">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; send_chat_message &gt; should send message with custom importance" time="0.000908019">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; send_chat_message &gt; should handle send errors" time="0.000916425">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; send_chat_message &gt; should send message with markdown format" time="0.022942454">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; send_chat_message &gt; should send message with text format (default)" time="0.001315992">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; send_chat_message &gt; should fallback to text for invalid format" time="0.00113475">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; create_chat &gt; should create one-on-one chat" time="0.001754307">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; create_chat &gt; should create group chat with topic" time="0.001271668">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; create_chat &gt; should ignore topic for one-on-one chats" time="0.001616098">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; create_chat &gt; should handle user lookup errors" time="0.001225217">
+        </testcase>
+        <testcase classname="src/tools/__tests__/chats.test.ts" name="Chat Tools &gt; create_chat &gt; should handle chat creation errors" time="0.001195539">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tools/__tests__/search.test.ts" timestamp="2026-02-07T13:31:27.211Z" hostname="code-server" tests="16" failures="0" errors="0" skipped="0" time="0.031976937">
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; registerSearchTools &gt; should register search_messages and get_my_mentions" time="0.012436159">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; formatSearchHits &gt; should map hit fields to a flat shape" time="0.001502389">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; formatSearchHits &gt; should handle missing optional fields gracefully" time="0.000234904">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; search_messages &gt; should send a single search request with provided parameters" time="0.001780186">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; search_messages &gt; should pass KQL query strings through unmodified" time="0.000885483">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; search_messages &gt; should support pagination with from offset" time="0.000886576">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; search_messages &gt; should return friendly message when no results found" time="0.001033315">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; search_messages &gt; should handle empty hitsContainers" time="0.000685834">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; search_messages &gt; should return error message on API failure" time="0.000748136">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; search_messages &gt; should handle non-Error thrown values" time="0.000864738">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; get_my_mentions &gt; should query with IsMentioned:true and date filter" time="0.00238409">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; get_my_mentions &gt; should return friendly message when no mentions found" time="0.000593434">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; get_my_mentions &gt; should return friendly message when hits array is empty" time="0.000581649">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; get_my_mentions &gt; should error when current user ID cannot be resolved" time="0.000493503">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; get_my_mentions &gt; should return error message on API failure" time="0.000527658">
+        </testcase>
+        <testcase classname="src/tools/__tests__/search.test.ts" name="Search Tools &gt; get_my_mentions &gt; should respect hours parameter for date calculation" time="0.00074265">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tools/__tests__/teams.test.ts" timestamp="2026-02-07T13:31:27.211Z" hostname="code-server" tests="56" failures="0" errors="0" skipped="0" time="0.178358417">
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_teams tool &gt; should register list_teams tool correctly" time="0.013354877">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_teams tool &gt; should return list of joined teams" time="0.003457823">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_teams tool &gt; should handle empty teams list" time="0.002668546">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_teams tool &gt; should handle API errors" time="0.003234172">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_channels tool &gt; should register list_channels tool with correct schema" time="0.001807967">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_channels tool &gt; should list channels for a team" time="0.0014492">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_channels tool &gt; should handle empty channels list" time="0.001311362">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; get_channel_messages tool &gt; should register get_channel_messages tool with correct schema" time="0.001278146">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; get_channel_messages tool &gt; should get channel messages with default limit" time="0.001535552">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; get_channel_messages tool &gt; should get channel messages with custom limit" time="0.001223374">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; get_channel_messages tool &gt; should handle empty messages" time="0.001357886">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; get_channel_messages tool &gt; should sort messages by creation date (newest first)" time="0.001882565">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should register send_channel_message tool with correct schema" time="0.00186118">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should send message with markdown format" time="0.028975083">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should send message with text format (default)" time="0.002802102">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should send message with custom importance" time="0.002752177">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should handle send message errors" time="0.002321393">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should send message with @mentions" time="0.002095933">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should handle mention user lookup failure gracefully" time="0.009586582">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should send message with image from URL" time="0.001849311">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should handle image download failure" time="0.007219428">
+            <system-err>
+Error converting image URL to base64: Error: Failed to fetch image: undefined
+    at imageUrlToBase64 [90m(/home/floris/projects/teams-mcp/[39msrc/utils/attachments.ts:108:13[90m)[39m
+    at Object.handler [90m(/home/floris/projects/teams-mcp/[39msrc/tools/teams.ts:319:25[90m)[39m
+    at [90m/home/floris/projects/teams-mcp/[39msrc/tools/__tests__/teams.test.ts:479:22
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should send message with base64 image data" time="0.001930382">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should reject unsupported image types" time="0.002182414">
+            <system-err>
+Error uploading image as hosted content: TypeError: Cannot read properties of undefined (reading &apos;id&apos;)
+    at uploadImageAsHostedContent [90m(/home/floris/projects/teams-mcp/[39msrc/utils/attachments.ts:47:38[90m)[39m
+    at Object.handler [90m(/home/floris/projects/teams-mcp/[39msrc/tools/teams.ts:347:34[90m)[39m
+    at [90m/home/floris/projects/teams-mcp/[39msrc/tools/__tests__/teams.test.ts:522:22
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; send_channel_message tool &gt; should send reply with markdown format" time="0.005669425">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; get_channel_message_replies tool &gt; should register get_channel_message_replies tool with correct schema" time="0.001525087">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; get_channel_message_replies tool &gt; should get message replies" time="0.002159286">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; get_channel_message_replies tool &gt; should handle no replies found" time="0.001945986">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; get_channel_message_replies tool &gt; should handle get replies errors" time="0.001982932">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should register reply_to_channel_message tool with correct schema" time="0.002075963">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should reply to a message with default importance" time="0.002518079">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should reply to a message with custom importance" time="0.002261825">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should handle reply errors" time="0.002251638">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should reply with markdown format" time="0.004020942">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should reply with text format (default)" time="0.002453284">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should fallback to text for invalid format in reply" time="0.002177694">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should reply with @mentions" time="0.002230014">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should reply with image from URL" time="0.002217846">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; reply_to_channel_message tool &gt; should handle image upload failure in reply" time="0.002360264">
+            <system-err>
+Error converting image URL to base64: Error: Failed to fetch image: undefined
+    at imageUrlToBase64 [90m(/home/floris/projects/teams-mcp/[39msrc/utils/attachments.ts:108:13[90m)[39m
+    at Object.handler [90m(/home/floris/projects/teams-mcp/[39msrc/tools/teams.ts:617:25[90m)[39m
+    at [90m/home/floris/projects/teams-mcp/[39msrc/tools/__tests__/teams.test.ts:833:22
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_team_members tool &gt; should register list_team_members tool with correct schema" time="0.00191885">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_team_members tool &gt; should list team members" time="0.002102193">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_team_members tool &gt; should handle empty members list" time="0.001803404">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; list_team_members tool &gt; should handle list members errors" time="0.001882823">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; error handling &gt; should handle authentication errors in all tools" time="0.001922205">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; error handling &gt; should handle unknown errors" time="0.001742863">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; input validation &gt; should handle invalid team IDs" time="0.001838656">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; input validation &gt; should handle invalid channel IDs" time="0.001932807">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; input validation &gt; should handle empty message content" time="0.007465885">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; message content handling &gt; should handle messages with missing body content" time="0.001385229">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; message content handling &gt; should handle messages with missing from user" time="0.001193628">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; search_users_for_mentions tool &gt; should register search_users_for_mentions tool with correct schema" time="0.001173089">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; search_users_for_mentions tool &gt; should search for users" time="0.001494211">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; search_users_for_mentions tool &gt; should handle no users found" time="0.00151119">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; search_users_for_mentions tool &gt; should handle search errors gracefully" time="0.002207611">
+            <system-err>
+Error searching users: Error: Search failed
+    at [90m/home/floris/projects/teams-mcp/[39msrc/tools/__tests__/teams.test.ts:1090:46
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:145:11
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:26
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1243:20
+    at new Promise (&lt;anonymous&gt;)
+    at runWithTimeout [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1209:10[90m)[39m
+    at [90mfile:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:37
+    at Traces.$ [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4mvitest[24m/dist/chunks/traces.CCmnQaNT.js:142:27[90m)[39m
+    at trace [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4mvitest[24m/dist/chunks/test.B8ej_ZHS.js:239:21[90m)[39m
+    at runTest [90m(file:///home/floris/projects/teams-mcp/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:1653:12[90m)[39m
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; download_message_hosted_content tool &gt; should register download_message_hosted_content tool with correct schema" time="0.001747938">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; download_message_hosted_content tool &gt; should handle message not found" time="0.001694828">
+        </testcase>
+        <testcase classname="src/tools/__tests__/teams.test.ts" name="Teams Tools &gt; download_message_hosted_content tool &gt; should handle no attachments in message" time="0.001723884">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/tools/__tests__/users.test.ts" timestamp="2026-02-07T13:31:27.215Z" hostname="code-server" tests="18" failures="0" errors="0" skipped="0" time="0.018064353">
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; get_current_user tool &gt; should register get_current_user tool correctly" time="0.004846437">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; get_current_user tool &gt; should return current user information" time="0.000976548">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; get_current_user tool &gt; should handle API errors gracefully" time="0.000647033">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; get_current_user tool &gt; should handle unknown errors" time="0.000428911">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; search_users tool &gt; should register search_users tool with correct schema" time="0.000498098">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; search_users tool &gt; should search users successfully" time="0.000929121">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; search_users tool &gt; should handle empty search results" time="0.00059302">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; search_users tool &gt; should handle undefined value in response" time="0.000428345">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; search_users tool &gt; should handle search API errors" time="0.000519989">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; search_users tool &gt; should properly escape special characters in search query" time="0.000536332">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; get_user tool &gt; should register get_user tool with correct schema" time="0.000395107">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; get_user tool &gt; should get user by ID successfully" time="0.000606322">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; get_user tool &gt; should get user by email successfully" time="0.00058443">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; get_user tool &gt; should handle user not found error" time="0.000403156">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; get_user tool &gt; should handle partial user data" time="0.000463261">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; authentication errors &gt; should handle authentication errors in all tools" time="0.000402059">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; input validation &gt; should handle empty search query" time="0.000375155">
+        </testcase>
+        <testcase classname="src/tools/__tests__/users.test.ts" name="Users Tools &gt; input validation &gt; should handle empty userId" time="0.000446916">
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -33,8 +33,7 @@ jobs:
 
       - name: Run linting and formatting
         run: |
-          # Install and run Biome directly
-          npx @biomejs/biome check .
+          npm run ci
 
       - name: Run type checking
         run: npm run compile

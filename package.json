@@ -19,6 +19,7 @@
     "build": "npm run clean && npm run compile",
     "clean": "rm -rf dist",
     "compile": "tsc",
+    "ci": "biome ci src/",
     "dev": "tsx watch src/index.ts",
     "auth": "node dist/index.js authenticate",
     "auth:check": "node dist/index.js check",
