@@ -55,6 +55,28 @@ describe("Chat Tools", () => {
         expect.any(Function)
       );
     });
+
+    it("should register all chat tools when readOnly is false (backward compatibility)", () => {
+      registerChatTools(mockServer, mockGraphService, false);
+
+      expect(mockServer.tool).toHaveBeenCalledTimes(4);
+      const toolNames = vi.mocked(mockServer.tool).mock.calls.map(([name]: [string]) => name);
+      expect(toolNames).toContain("list_chats");
+      expect(toolNames).toContain("get_chat_messages");
+      expect(toolNames).toContain("send_chat_message");
+      expect(toolNames).toContain("create_chat");
+    });
+
+    it("should register only read tools when readOnly is true", () => {
+      registerChatTools(mockServer, mockGraphService, true);
+
+      expect(mockServer.tool).toHaveBeenCalledTimes(2);
+      const toolNames = vi.mocked(mockServer.tool).mock.calls.map(([name]: [string]) => name);
+      expect(toolNames).toContain("list_chats");
+      expect(toolNames).toContain("get_chat_messages");
+      expect(toolNames).not.toContain("send_chat_message");
+      expect(toolNames).not.toContain("create_chat");
+    });
   });
 
   describe("list_chats", () => {

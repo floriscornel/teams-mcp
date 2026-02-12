@@ -21,7 +21,7 @@ import {
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml, searchUsers, type UserInfo } from "../utils/users.js";
 
-export function registerTeamsTools(server: McpServer, graphService: GraphService) {
+export function registerTeamsTools(server: McpServer, graphService: GraphService, readOnly = false) {
   // List user's teams
   server.tool(
     "list_teams",
@@ -210,214 +210,217 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
     }
   );
 
-  // Send message to channel
-  server.tool(
-    "send_channel_message",
-    "Send a message to a specific channel in a Microsoft Team. Supports text and markdown formatting, mentions, and importance levels.",
-    {
-      teamId: z.string().describe("Team ID"),
-      channelId: z.string().describe("Channel ID"),
-      message: z.string().describe("Message content"),
-      importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
-      format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
-      mentions: z
-        .array(
-          z.object({
-            mention: z
-              .string()
-              .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
-            userId: z.string().describe("Azure AD User ID of the mentioned user"),
-          })
-        )
-        .optional()
-        .describe("Array of @mentions to include in the message"),
-      imageUrl: z.string().optional().describe("URL of an image to attach to the message"),
-      imageData: z.string().optional().describe("Base64 encoded image data to attach"),
-      imageContentType: z
-        .string()
-        .optional()
-        .describe("MIME type of the image (e.g., 'image/jpeg', 'image/png')"),
-      imageFileName: z.string().optional().describe("Name for the attached image file"),
-    },
-    async ({
-      teamId,
-      channelId,
-      message,
-      importance = "normal",
-      format = "text",
-      mentions,
-      imageUrl,
-      imageData,
-      imageContentType,
-      imageFileName,
-    }) => {
-      try {
-        const client = await graphService.getClient();
+  // Write tools - only registered in full-access mode
+  if (!readOnly) {
+    // Send message to channel
+    server.tool(
+      "send_channel_message",
+      "Send a message to a specific channel in a Microsoft Team. Supports text and markdown formatting, mentions, and importance levels.",
+      {
+        teamId: z.string().describe("Team ID"),
+        channelId: z.string().describe("Channel ID"),
+        message: z.string().describe("Message content"),
+        importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+        format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
+        mentions: z
+          .array(
+            z.object({
+              mention: z
+                .string()
+                .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
+              userId: z.string().describe("Azure AD User ID of the mentioned user"),
+            })
+          )
+          .optional()
+          .describe("Array of @mentions to include in the message"),
+        imageUrl: z.string().optional().describe("URL of an image to attach to the message"),
+        imageData: z.string().optional().describe("Base64 encoded image data to attach"),
+        imageContentType: z
+          .string()
+          .optional()
+          .describe("MIME type of the image (e.g., 'image/jpeg', 'image/png')"),
+        imageFileName: z.string().optional().describe("Name for the attached image file"),
+      },
+      async ({
+        teamId,
+        channelId,
+        message,
+        importance = "normal",
+        format = "text",
+        mentions,
+        imageUrl,
+        imageData,
+        imageContentType,
+        imageFileName,
+      }) => {
+        try {
+          const client = await graphService.getClient();
 
-        // Process message content based on format
-        let content: string;
-        let contentType: "text" | "html";
+          // Process message content based on format
+          let content: string;
+          let contentType: "text" | "html";
 
-        if (format === "markdown") {
-          content = await markdownToHtml(message);
-          contentType = "html";
-        } else {
-          content = message;
-          contentType = "text";
-        }
+          if (format === "markdown") {
+            content = await markdownToHtml(message);
+            contentType = "html";
+          } else {
+            content = message;
+            contentType = "text";
+          }
 
-        // Process @mentions if provided
-        const mentionMappings: Array<{ mention: string; userId: string; displayName: string }> = [];
-        if (mentions && mentions.length > 0) {
-          // Convert provided mentions to mappings with display names
-          for (const mention of mentions) {
-            try {
-              // Get user info to get display name
-              const userResponse = await client
-                .api(`/users/${mention.userId}`)
-                .select("displayName")
-                .get();
-              mentionMappings.push({
-                mention: mention.mention,
-                userId: mention.userId,
-                displayName: userResponse.displayName || mention.mention,
-              });
-            } catch (_error) {
-              console.warn(
-                `Could not resolve user ${mention.userId}, using mention text as display name`
+          // Process @mentions if provided
+          const mentionMappings: Array<{ mention: string; userId: string; displayName: string }> = [];
+          if (mentions && mentions.length > 0) {
+            // Convert provided mentions to mappings with display names
+            for (const mention of mentions) {
+              try {
+                // Get user info to get display name
+                const userResponse = await client
+                  .api(`/users/${mention.userId}`)
+                  .select("displayName")
+                  .get();
+                mentionMappings.push({
+                  mention: mention.mention,
+                  userId: mention.userId,
+                  displayName: userResponse.displayName || mention.mention,
+                });
+              } catch (_error) {
+                console.warn(
+                  `Could not resolve user ${mention.userId}, using mention text as display name`
+                );
+                mentionMappings.push({
+                  mention: mention.mention,
+                  userId: mention.userId,
+                  displayName: mention.mention,
+                });
+              }
+            }
+          }
+
+          // Process mentions in HTML content
+          let finalMentions: Array<{
+            id: number;
+            mentionText: string;
+            mentioned: { user: { id: string } };
+          }> = [];
+          if (mentionMappings.length > 0) {
+            const result = processMentionsInHtml(content, mentionMappings);
+            content = result.content;
+            finalMentions = result.mentions;
+
+            // Ensure we're using HTML content type when mentions are present
+            contentType = "html";
+          }
+
+          // Handle image attachment
+          const attachments: ImageAttachment[] = [];
+          if (imageUrl || imageData) {
+            let imageInfo: { data: string; contentType: string } | null = null;
+
+            if (imageUrl) {
+              imageInfo = await imageUrlToBase64(imageUrl);
+              if (!imageInfo) {
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: `❌ Failed to download image from URL: ${imageUrl}`,
+                    },
+                  ],
+                  isError: true,
+                };
+              }
+            } else if (imageData && imageContentType) {
+              if (!isValidImageType(imageContentType)) {
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: `❌ Unsupported image type: ${imageContentType}`,
+                    },
+                  ],
+                  isError: true,
+                };
+              }
+              imageInfo = { data: imageData, contentType: imageContentType };
+            }
+
+            if (imageInfo) {
+              const uploadResult = await uploadImageAsHostedContent(
+                graphService,
+                teamId,
+                channelId,
+                imageInfo.data,
+                imageInfo.contentType,
+                imageFileName
               );
-              mentionMappings.push({
-                mention: mention.mention,
-                userId: mention.userId,
-                displayName: mention.mention,
-              });
+
+              if (uploadResult) {
+                attachments.push(uploadResult.attachment);
+              } else {
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: "❌ Failed to upload image attachment",
+                    },
+                  ],
+                  isError: true,
+                };
+              }
             }
           }
-        }
 
-        // Process mentions in HTML content
-        let finalMentions: Array<{
-          id: number;
-          mentionText: string;
-          mentioned: { user: { id: string } };
-        }> = [];
-        if (mentionMappings.length > 0) {
-          const result = processMentionsInHtml(content, mentionMappings);
-          content = result.content;
-          finalMentions = result.mentions;
-
-          // Ensure we're using HTML content type when mentions are present
-          contentType = "html";
-        }
-
-        // Handle image attachment
-        const attachments: ImageAttachment[] = [];
-        if (imageUrl || imageData) {
-          let imageInfo: { data: string; contentType: string } | null = null;
-
-          if (imageUrl) {
-            imageInfo = await imageUrlToBase64(imageUrl);
-            if (!imageInfo) {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: `❌ Failed to download image from URL: ${imageUrl}`,
-                  },
-                ],
-                isError: true,
-              };
-            }
-          } else if (imageData && imageContentType) {
-            if (!isValidImageType(imageContentType)) {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: `❌ Unsupported image type: ${imageContentType}`,
-                  },
-                ],
-                isError: true,
-              };
-            }
-            imageInfo = { data: imageData, contentType: imageContentType };
-          }
-
-          if (imageInfo) {
-            const uploadResult = await uploadImageAsHostedContent(
-              graphService,
-              teamId,
-              channelId,
-              imageInfo.data,
-              imageInfo.contentType,
-              imageFileName
-            );
-
-            if (uploadResult) {
-              attachments.push(uploadResult.attachment);
-            } else {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: "❌ Failed to upload image attachment",
-                  },
-                ],
-                isError: true,
-              };
-            }
-          }
-        }
-
-        // Build message payload
-        const messagePayload: any = {
-          body: {
-            content,
-            contentType,
-          },
-          importance,
-        };
-
-        if (finalMentions.length > 0) {
-          messagePayload.mentions = finalMentions;
-        }
-
-        if (attachments.length > 0) {
-          messagePayload.attachments = attachments;
-        }
-
-        const result = (await client
-          .api(`/teams/${teamId}/channels/${channelId}/messages`)
-          .post(messagePayload)) as ChatMessage;
-
-        // Build success message
-        const successText = `✅ Message sent successfully. Message ID: ${result.id}${
-          finalMentions.length > 0
-            ? `\n📱 Mentions: ${finalMentions.map((m) => m.mentionText).join(", ")}`
-            : ""
-        }${attachments.length > 0 ? `\n🖼️ Image attached: ${attachments[0].name}` : ""}`;
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: successText,
+          // Build message payload
+          const messagePayload: any = {
+            body: {
+              content,
+              contentType,
             },
-          ],
-        };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `❌ Failed to send message: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+            importance,
+          };
+
+          if (finalMentions.length > 0) {
+            messagePayload.mentions = finalMentions;
+          }
+
+          if (attachments.length > 0) {
+            messagePayload.attachments = attachments;
+          }
+
+          const result = (await client
+            .api(`/teams/${teamId}/channels/${channelId}/messages`)
+            .post(messagePayload)) as ChatMessage;
+
+          // Build success message
+          const successText = `✅ Message sent successfully. Message ID: ${result.id}${
+            finalMentions.length > 0
+              ? `\n📱 Mentions: ${finalMentions.map((m) => m.mentionText).join(", ")}`
+              : ""
+          }${attachments.length > 0 ? `\n🖼️ Image attached: ${attachments[0].name}` : ""}`;
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: successText,
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `❌ Failed to send message: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
       }
-    }
-  );
+    );
+  } // end if (!readOnly) for send_channel_message
 
   // Get replies to a message in a channel
   server.tool(
@@ -506,216 +509,218 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
     }
   );
 
-  // Reply to a message in a channel
-  server.tool(
-    "reply_to_channel_message",
-    "Reply to a specific message in a channel. Supports text and markdown formatting, mentions, and importance levels.",
-    {
-      teamId: z.string().describe("Team ID"),
-      channelId: z.string().describe("Channel ID"),
-      messageId: z.string().describe("Message ID to reply to"),
-      message: z.string().describe("Reply content"),
-      importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
-      format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
-      mentions: z
-        .array(
-          z.object({
-            mention: z
-              .string()
-              .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
-            userId: z.string().describe("Azure AD User ID of the mentioned user"),
-          })
-        )
-        .optional()
-        .describe("Array of @mentions to include in the reply"),
-      imageUrl: z.string().optional().describe("URL of an image to attach to the reply"),
-      imageData: z.string().optional().describe("Base64 encoded image data to attach"),
-      imageContentType: z
-        .string()
-        .optional()
-        .describe("MIME type of the image (e.g., 'image/jpeg', 'image/png')"),
-      imageFileName: z.string().optional().describe("Name for the attached image file"),
-    },
-    async ({
-      teamId,
-      channelId,
-      messageId,
-      message,
-      importance = "normal",
-      format = "text",
-      mentions,
-      imageUrl,
-      imageData,
-      imageContentType,
-      imageFileName,
-    }) => {
-      try {
-        const client = await graphService.getClient();
+  if (!readOnly) {
+    // Reply to a message in a channel
+    server.tool(
+      "reply_to_channel_message",
+      "Reply to a specific message in a channel. Supports text and markdown formatting, mentions, and importance levels.",
+      {
+        teamId: z.string().describe("Team ID"),
+        channelId: z.string().describe("Channel ID"),
+        messageId: z.string().describe("Message ID to reply to"),
+        message: z.string().describe("Reply content"),
+        importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+        format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
+        mentions: z
+          .array(
+            z.object({
+              mention: z
+                .string()
+                .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
+              userId: z.string().describe("Azure AD User ID of the mentioned user"),
+            })
+          )
+          .optional()
+          .describe("Array of @mentions to include in the reply"),
+        imageUrl: z.string().optional().describe("URL of an image to attach to the reply"),
+        imageData: z.string().optional().describe("Base64 encoded image data to attach"),
+        imageContentType: z
+          .string()
+          .optional()
+          .describe("MIME type of the image (e.g., 'image/jpeg', 'image/png')"),
+        imageFileName: z.string().optional().describe("Name for the attached image file"),
+      },
+      async ({
+        teamId,
+        channelId,
+        messageId,
+        message,
+        importance = "normal",
+        format = "text",
+        mentions,
+        imageUrl,
+        imageData,
+        imageContentType,
+        imageFileName,
+      }) => {
+        try {
+          const client = await graphService.getClient();
 
-        // Process message content based on format
-        let content: string;
-        let contentType: "text" | "html";
+          // Process message content based on format
+          let content: string;
+          let contentType: "text" | "html";
 
-        if (format === "markdown") {
-          content = await markdownToHtml(message);
-          contentType = "html";
-        } else {
-          content = message;
-          contentType = "text";
-        }
+          if (format === "markdown") {
+            content = await markdownToHtml(message);
+            contentType = "html";
+          } else {
+            content = message;
+            contentType = "text";
+          }
 
-        // Process @mentions if provided
-        const mentionMappings: Array<{ mention: string; userId: string; displayName: string }> = [];
-        if (mentions && mentions.length > 0) {
-          // Convert provided mentions to mappings with display names
-          for (const mention of mentions) {
-            try {
-              // Get user info to get display name
-              const userResponse = await client
-                .api(`/users/${mention.userId}`)
-                .select("displayName")
-                .get();
-              mentionMappings.push({
-                mention: mention.mention,
-                userId: mention.userId,
-                displayName: userResponse.displayName || mention.mention,
-              });
-            } catch (_error) {
-              console.warn(
-                `Could not resolve user ${mention.userId}, using mention text as display name`
+          // Process @mentions if provided
+          const mentionMappings: Array<{ mention: string; userId: string; displayName: string }> = [];
+          if (mentions && mentions.length > 0) {
+            // Convert provided mentions to mappings with display names
+            for (const mention of mentions) {
+              try {
+                // Get user info to get display name
+                const userResponse = await client
+                  .api(`/users/${mention.userId}`)
+                  .select("displayName")
+                  .get();
+                mentionMappings.push({
+                  mention: mention.mention,
+                  userId: mention.userId,
+                  displayName: userResponse.displayName || mention.mention,
+                });
+              } catch (_error) {
+                console.warn(
+                  `Could not resolve user ${mention.userId}, using mention text as display name`
+                );
+                mentionMappings.push({
+                  mention: mention.mention,
+                  userId: mention.userId,
+                  displayName: mention.mention,
+                });
+              }
+            }
+          }
+
+          // Process mentions in HTML content
+          let finalMentions: Array<{
+            id: number;
+            mentionText: string;
+            mentioned: { user: { id: string } };
+          }> = [];
+          if (mentionMappings.length > 0) {
+            const result = processMentionsInHtml(content, mentionMappings);
+            content = result.content;
+            finalMentions = result.mentions;
+
+            // Ensure we're using HTML content type when mentions are present
+            contentType = "html";
+          }
+
+          // Handle image attachment
+          const attachments: ImageAttachment[] = [];
+          if (imageUrl || imageData) {
+            let imageInfo: { data: string; contentType: string } | null = null;
+
+            if (imageUrl) {
+              imageInfo = await imageUrlToBase64(imageUrl);
+              if (!imageInfo) {
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: `❌ Failed to download image from URL: ${imageUrl}`,
+                    },
+                  ],
+                  isError: true,
+                };
+              }
+            } else if (imageData && imageContentType) {
+              if (!isValidImageType(imageContentType)) {
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: `❌ Unsupported image type: ${imageContentType}`,
+                    },
+                  ],
+                  isError: true,
+                };
+              }
+              imageInfo = { data: imageData, contentType: imageContentType };
+            }
+
+            if (imageInfo) {
+              const uploadResult = await uploadImageAsHostedContent(
+                graphService,
+                teamId,
+                channelId,
+                imageInfo.data,
+                imageInfo.contentType,
+                imageFileName
               );
-              mentionMappings.push({
-                mention: mention.mention,
-                userId: mention.userId,
-                displayName: mention.mention,
-              });
+
+              if (uploadResult) {
+                attachments.push(uploadResult.attachment);
+              } else {
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: "❌ Failed to upload image attachment",
+                    },
+                  ],
+                  isError: true,
+                };
+              }
             }
           }
-        }
 
-        // Process mentions in HTML content
-        let finalMentions: Array<{
-          id: number;
-          mentionText: string;
-          mentioned: { user: { id: string } };
-        }> = [];
-        if (mentionMappings.length > 0) {
-          const result = processMentionsInHtml(content, mentionMappings);
-          content = result.content;
-          finalMentions = result.mentions;
-
-          // Ensure we're using HTML content type when mentions are present
-          contentType = "html";
-        }
-
-        // Handle image attachment
-        const attachments: ImageAttachment[] = [];
-        if (imageUrl || imageData) {
-          let imageInfo: { data: string; contentType: string } | null = null;
-
-          if (imageUrl) {
-            imageInfo = await imageUrlToBase64(imageUrl);
-            if (!imageInfo) {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: `❌ Failed to download image from URL: ${imageUrl}`,
-                  },
-                ],
-                isError: true,
-              };
-            }
-          } else if (imageData && imageContentType) {
-            if (!isValidImageType(imageContentType)) {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: `❌ Unsupported image type: ${imageContentType}`,
-                  },
-                ],
-                isError: true,
-              };
-            }
-            imageInfo = { data: imageData, contentType: imageContentType };
-          }
-
-          if (imageInfo) {
-            const uploadResult = await uploadImageAsHostedContent(
-              graphService,
-              teamId,
-              channelId,
-              imageInfo.data,
-              imageInfo.contentType,
-              imageFileName
-            );
-
-            if (uploadResult) {
-              attachments.push(uploadResult.attachment);
-            } else {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: "❌ Failed to upload image attachment",
-                  },
-                ],
-                isError: true,
-              };
-            }
-          }
-        }
-
-        // Build message payload
-        const messagePayload: any = {
-          body: {
-            content,
-            contentType,
-          },
-          importance,
-        };
-
-        if (finalMentions.length > 0) {
-          messagePayload.mentions = finalMentions;
-        }
-
-        if (attachments.length > 0) {
-          messagePayload.attachments = attachments;
-        }
-
-        const result = (await client
-          .api(`/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies`)
-          .post(messagePayload)) as ChatMessage;
-
-        // Build success message
-        const successText = `✅ Reply sent successfully. Reply ID: ${result.id}${
-          finalMentions.length > 0
-            ? `\n📱 Mentions: ${finalMentions.map((m) => m.mentionText).join(", ")}`
-            : ""
-        }${attachments.length > 0 ? `\n🖼️ Image attached: ${attachments[0].name}` : ""}`;
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: successText,
+          // Build message payload
+          const messagePayload: any = {
+            body: {
+              content,
+              contentType,
             },
-          ],
-        };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `❌ Failed to send reply: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+            importance,
+          };
+
+          if (finalMentions.length > 0) {
+            messagePayload.mentions = finalMentions;
+          }
+
+          if (attachments.length > 0) {
+            messagePayload.attachments = attachments;
+          }
+
+          const result = (await client
+            .api(`/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies`)
+            .post(messagePayload)) as ChatMessage;
+
+          // Build success message
+          const successText = `✅ Reply sent successfully. Reply ID: ${result.id}${
+            finalMentions.length > 0
+              ? `\n📱 Mentions: ${finalMentions.map((m) => m.mentionText).join(", ")}`
+              : ""
+          }${attachments.length > 0 ? `\n🖼️ Image attached: ${attachments[0].name}` : ""}`;
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: successText,
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `❌ Failed to send reply: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
       }
-    }
-  );
+    );
+  } // end if (!readOnly)
 
   // List team members
   server.tool(

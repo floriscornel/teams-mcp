@@ -153,6 +153,40 @@ describe("Authentication Tools", () => {
     });
   });
 
+  describe("read-only mode indicator", () => {
+    it("should include [Read-Only Mode] when readOnly is true", async () => {
+      mockGraphService = createMockGraphService();
+      registerAuthTools(mockServer, mockGraphService, true);
+
+      const authTool = mockServer.getTool("auth_status");
+      const result = await authTool.handler();
+
+      expect(result.content[0].text).toContain("[Read-Only Mode]");
+      expect(result.content[0].text).toContain("✅ Authenticated as Test User");
+    });
+
+    it("should NOT include [Read-Only Mode] when readOnly is false", async () => {
+      mockGraphService = createMockGraphService();
+      registerAuthTools(mockServer, mockGraphService, false);
+
+      const authTool = mockServer.getTool("auth_status");
+      const result = await authTool.handler();
+
+      expect(result.content[0].text).not.toContain("[Read-Only Mode]");
+      expect(result.content[0].text).toContain("✅ Authenticated as Test User");
+    });
+
+    it("should NOT include [Read-Only Mode] when readOnly is not passed (default)", async () => {
+      mockGraphService = createMockGraphService();
+      registerAuthTools(mockServer, mockGraphService);
+
+      const authTool = mockServer.getTool("auth_status");
+      const result = await authTool.handler();
+
+      expect(result.content[0].text).not.toContain("[Read-Only Mode]");
+    });
+  });
+
   describe("authentication state changes", () => {
     it("should reflect real-time authentication status changes", async () => {
       // Start with unauthenticated state

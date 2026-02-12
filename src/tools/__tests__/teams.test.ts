@@ -36,6 +36,40 @@ describe("Teams Tools", () => {
     vi.clearAllMocks();
   });
 
+  describe("registerTeamsTools", () => {
+    it("should register all teams tools when readOnly is false (backward compatibility)", () => {
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      expect(mockServer.tool).toHaveBeenCalledTimes(9);
+      const toolNames = mockServer.getAllTools();
+      expect(toolNames).toContain("list_teams");
+      expect(toolNames).toContain("list_channels");
+      expect(toolNames).toContain("get_channel_messages");
+      expect(toolNames).toContain("send_channel_message");
+      expect(toolNames).toContain("get_channel_message_replies");
+      expect(toolNames).toContain("reply_to_channel_message");
+      expect(toolNames).toContain("list_team_members");
+      expect(toolNames).toContain("search_users_for_mentions");
+      expect(toolNames).toContain("download_message_hosted_content");
+    });
+
+    it("should register only read tools when readOnly is true", () => {
+      registerTeamsTools(mockServer, mockGraphService, true);
+
+      expect(mockServer.tool).toHaveBeenCalledTimes(7);
+      const toolNames = mockServer.getAllTools();
+      expect(toolNames).toContain("list_teams");
+      expect(toolNames).toContain("list_channels");
+      expect(toolNames).toContain("get_channel_messages");
+      expect(toolNames).toContain("get_channel_message_replies");
+      expect(toolNames).toContain("list_team_members");
+      expect(toolNames).toContain("search_users_for_mentions");
+      expect(toolNames).toContain("download_message_hosted_content");
+      expect(toolNames).not.toContain("send_channel_message");
+      expect(toolNames).not.toContain("reply_to_channel_message");
+    });
+  });
+
   describe("list_teams tool", () => {
     it("should register list_teams tool correctly", () => {
       registerTeamsTools(mockServer, mockGraphService);

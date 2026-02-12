@@ -24,8 +24,14 @@ const AUTHORITY = "https://login.microsoftonline.com/common";
 
 const AUTH_INFO_PATH = join(homedir(), ".msgraph-mcp-auth.json");
 
-// Scopes for delegated (user) authentication
-const DELEGATED_SCOPES = [
+// Read-only mode detection from environment variable
+function isReadOnlyMode(): boolean {
+  const value = process.env.TEAMS_MCP_READ_ONLY?.toLowerCase()?.trim();
+  return value === "true" || value === "1" || value === "yes";
+}
+
+// Scopes for delegated (user) authentication, adjusted based on mode
+const FULL_ACCESS_SCOPES = [
   "User.Read",
   "User.ReadBasic.All",
   "Team.ReadBasic.All",
@@ -36,6 +42,21 @@ const DELEGATED_SCOPES = [
   "Chat.ReadBasic",
   "Chat.ReadWrite",
 ];
+
+const READ_ONLY_SCOPES = [
+  "User.Read",
+  "User.ReadBasic.All",
+  "Team.ReadBasic.All",
+  "Channel.ReadBasic.All",
+  "ChannelMessage.Read.All",
+  "TeamMember.Read.All",
+  "Chat.ReadBasic",
+  "Chat.Read",
+];
+
+function getDelegatedScopes(readOnly: boolean): string[] {
+  return readOnly ? READ_ONLY_SCOPES : FULL_ACCESS_SCOPES;
+}
 
 // Authentication functions
 async function authenticate() {
@@ -58,8 +79,9 @@ async function authenticate() {
 
     const client = new PublicClientApplication(msalConfig);
 
+    const scopes = getDelegatedScopes(isReadOnlyMode());
     const result: AuthenticationResult | null = await client.acquireTokenByDeviceCode({
-      scopes: DELEGATED_SCOPES,
+      scopes,
       deviceCodeCallback: (response) => {
         console.log("\n📱 Please complete authentication:");
         console.log(`🌐 Visit: ${response.verificationUri}`);
@@ -165,20 +187,27 @@ async function startMcpServer() {
     version: "0.5.0",
   });
 
+  // Determine operating mode
+  const readOnly = isReadOnlyMode();
+
   // Initialize Graph service (singleton)
   const graphService = GraphService.getInstance();
 
-  // Register all tools
-  registerAuthTools(server, graphService);
+  // Register all tools (write tools excluded in read-only mode)
+  registerAuthTools(server, graphService, readOnly);
   registerUsersTools(server, graphService);
-  registerTeamsTools(server, graphService);
-  registerChatTools(server, graphService);
+  registerTeamsTools(server, graphService, readOnly);
+  registerChatTools(server, graphService, readOnly);
   registerSearchTools(server, graphService);
 
   // Start server
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("Microsoft Graph MCP Server started");
+  console.error(
+    readOnly
+      ? "Microsoft Graph MCP Server started (read-only mode)"
+      : "Microsoft Graph MCP Server started"
+  );
 }
 
 // Main function to handle both CLI and MCP server modes

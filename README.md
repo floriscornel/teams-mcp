@@ -144,19 +144,66 @@ npm run auth
 - Microsoft 365 account with appropriate permissions
 - Azure App Registration with Microsoft Graph permissions
 
+### Read-Only Mode
+
+If your organization restricts write permissions (e.g., `ChannelMessage.Send`, `Chat.ReadWrite`), you can run the server in **read-only mode**. This requests only read-level Microsoft Graph permissions and disables all message-sending tools.
+
+Set the `TEAMS_MCP_READ_ONLY` environment variable before authenticating and starting the server:
+
+```bash
+export TEAMS_MCP_READ_ONLY=true
+npx @floriscornel/teams-mcp@latest authenticate
+```
+
+Or configure it directly in your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "teams-mcp": {
+      "command": "npx",
+      "args": ["-y", "@floriscornel/teams-mcp@latest"],
+      "env": {
+        "TEAMS_MCP_READ_ONLY": "true"
+      }
+    }
+  }
+}
+```
+
+**Important:** You must authenticate with `TEAMS_MCP_READ_ONLY=true` set so that the correct read-only scopes are requested. If you previously authenticated in full-access mode, re-run the authenticate command with the env var set.
+
+In read-only mode:
+- 15 read tools are available (browse teams, channels, chats, search messages, etc.)
+- 4 write tools are disabled: `send_chat_message`, `create_chat`, `send_channel_message`, `reply_to_channel_message`
+- The `auth_status` tool shows `[Read-Only Mode]` to confirm the active mode
+- Accepted values: `true`, `1`, `yes` (case-insensitive)
+
 ### Required Microsoft Graph Permissions
+
+#### Full Access (default)
 - `User.Read` - Read user profile
 - `User.ReadBasic.All` - Read basic user info
 - `Team.ReadBasic.All` - Read team information
 - `Channel.ReadBasic.All` - Read channel information
 - `ChannelMessage.Read.All` - Read channel messages
 - `ChannelMessage.Send` - Send channel messages
-- `Chat.Read` - Read chat messages
+- `Chat.ReadBasic` - Read basic chat info
 - `Chat.ReadWrite` - Create and manage chats
 - `Mail.Read` - Required for Microsoft Search API
 - `Calendars.Read` - Required for Microsoft Search API
 - `Files.Read.All` - Required for Microsoft Search API
 - `Sites.Read.All` - Required for Microsoft Search API
+
+#### Read-Only Mode
+- `User.Read` - Read user profile
+- `User.ReadBasic.All` - Read basic user info
+- `Team.ReadBasic.All` - Read team information
+- `Channel.ReadBasic.All` - Read channel information
+- `ChannelMessage.Read.All` - Read channel messages
+- `TeamMember.Read.All` - Read team member info
+- `Chat.ReadBasic` - Read basic chat info
+- `Chat.Read` - Read chat messages
 
 ## 🛠️ Usage
 

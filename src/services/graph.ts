@@ -5,7 +5,13 @@ import { cachePlugin } from "../msal-cache.js";
 const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
 const AUTHORITY = "https://login.microsoftonline.com/common";
 
-const DELEGATED_SCOPES = [
+// Read-only mode detection from environment variable
+function isReadOnlyMode(): boolean {
+  const value = process.env.TEAMS_MCP_READ_ONLY?.toLowerCase()?.trim();
+  return value === "true" || value === "1" || value === "yes";
+}
+
+const FULL_ACCESS_SCOPES = [
   "User.Read",
   "User.ReadBasic.All",
   "Team.ReadBasic.All",
@@ -16,6 +22,21 @@ const DELEGATED_SCOPES = [
   "Chat.ReadBasic",
   "Chat.ReadWrite",
 ];
+
+const READ_ONLY_SCOPES = [
+  "User.Read",
+  "User.ReadBasic.All",
+  "Team.ReadBasic.All",
+  "Channel.ReadBasic.All",
+  "ChannelMessage.Read.All",
+  "TeamMember.Read.All",
+  "Chat.ReadBasic",
+  "Chat.Read",
+];
+
+function getDelegatedScopes(readOnly: boolean): string[] {
+  return readOnly ? READ_ONLY_SCOPES : FULL_ACCESS_SCOPES;
+}
 
 export interface AuthStatus {
   isAuthenticated: boolean;
@@ -78,7 +99,7 @@ export class GraphService {
 
       // Verify we can acquire a token
       const result = await this.msalApp.acquireTokenSilent({
-        scopes: DELEGATED_SCOPES,
+        scopes: getDelegatedScopes(isReadOnlyMode()),
         account: this.msalAccount,
       });
 
@@ -107,7 +128,7 @@ export class GraphService {
     }
 
     const result = await this.msalApp.acquireTokenSilent({
-      scopes: DELEGATED_SCOPES,
+      scopes: getDelegatedScopes(isReadOnlyMode()),
       account: this.msalAccount,
     });
 
