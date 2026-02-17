@@ -844,6 +844,201 @@ describe("Teams Tools", () => {
     });
   });
 
+  describe("update_channel_message tool", () => {
+    it("should update channel message with text content", async () => {
+      const mockApiChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn(),
+        post: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("update_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        message: "Updated message",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/test-team-id/channels/test-channel-id/messages/msg-123"
+      );
+      expect(mockApiChain.patch).toHaveBeenCalledWith({
+        body: {
+          content: "Updated message",
+          contentType: "text",
+        },
+        importance: "normal",
+      });
+      expect(result.content[0].text).toBe(
+        "✅ Channel message updated successfully. Message ID: msg-123"
+      );
+    });
+
+    it("should update channel message with markdown format", async () => {
+      const mockApiChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn(),
+        post: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("update_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        message: "**Bold** _Italic_",
+        format: "markdown",
+      });
+
+      expect(mockApiChain.patch).toHaveBeenCalledWith({
+        body: {
+          content: expect.stringContaining("<strong>Bold</strong>"),
+          contentType: "html",
+        },
+        importance: "normal",
+      });
+      expect(result.content[0].text).toContain("✅ Channel message updated successfully");
+    });
+
+    it("should update channel message with mentions", async () => {
+      const mockPatchChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockUserChain = {
+        select: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue({ displayName: "Test User" }),
+        }),
+      };
+
+      mockClient.api = vi.fn().mockImplementation((url: string) => {
+        if (url.startsWith("/users/")) {
+          return mockUserChain;
+        }
+        return mockPatchChain;
+      });
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("update_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        message: "Hello @testuser!",
+        mentions: [{ mention: "@testuser", userId: "user-id-123" }],
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith("/users/user-id-123");
+      expect(mockPatchChain.patch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({ contentType: "html" }),
+          mentions: expect.any(Array),
+        })
+      );
+      expect(result.content[0].text).toContain("✅ Channel message updated successfully");
+      expect(result.content[0].text).toContain("Mentions:");
+    });
+
+    it("should handle update channel message errors", async () => {
+      const mockApiChain = {
+        patch: vi.fn().mockRejectedValue(new Error("Forbidden")),
+        get: vi.fn(),
+        post: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("update_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        message: "Updated",
+      });
+
+      expect(result.content[0].text).toBe(
+        "❌ Failed to update channel message: Forbidden"
+      );
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("delete_channel_message tool", () => {
+    it("should soft delete a channel message", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("delete_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/test-team-id/channels/test-channel-id/messages/msg-123/softDelete"
+      );
+      expect(mockApiChain.post).toHaveBeenCalledWith({});
+      expect(result.content[0].text).toBe(
+        "✅ Message deleted successfully. Message ID: msg-123"
+      );
+    });
+
+    it("should soft delete a reply message", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("delete_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        replyId: "reply-456",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/test-team-id/channels/test-channel-id/messages/msg-123/replies/reply-456/softDelete"
+      );
+      expect(mockApiChain.post).toHaveBeenCalledWith({});
+      expect(result.content[0].text).toBe(
+        "✅ Reply deleted successfully. Reply ID: reply-456"
+      );
+    });
+
+    it("should handle delete channel message errors", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockRejectedValue(new Error("Not found")),
+        get: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("delete_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+      });
+
+      expect(result.content[0].text).toBe(
+        "❌ Failed to delete message: Not found"
+      );
+      expect(result.isError).toBe(true);
+    });
+  });
+
   describe("list_team_members tool", () => {
     it("should register list_team_members tool with correct schema", () => {
       registerTeamsTools(mockServer, mockGraphService);

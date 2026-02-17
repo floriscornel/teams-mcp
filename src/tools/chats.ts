@@ -14,6 +14,14 @@ import type {
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml } from "../utils/users.js";
 
+/**
+ * Registers all chat-related MCP tools on the given server.
+ * Tools include: list_chats, get_chat_messages, send_chat_message,
+ * create_chat, update_chat_message, and delete_chat_message.
+ *
+ * @param server - The MCP server instance to register tools on.
+ * @param graphService - The Microsoft Graph service used for API calls.
+ */
 export function registerChatTools(server: McpServer, graphService: GraphService) {
   // List user's chats
   server.tool(
