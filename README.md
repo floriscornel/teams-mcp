@@ -61,6 +61,20 @@ To use this MCP server in Cursor/Claude/VS Code, add the following configuration
   - Create new 1:1 or group conversations
   - Retrieve chat message history with filtering and pagination
   - Send messages to existing chats
+  - Edit previously sent chat messages
+  - Soft delete chat messages
+
+### ✏️ Message Management
+- **Edit & Delete**
+  - Update (edit) sent messages in chats and channels
+  - Soft delete messages in chats and channels (marks as deleted without permanent removal)
+  - Only message senders can update/delete their own messages
+  - Support for markdown formatting, mentions, and importance levels on edits
+
+### 📎 Media & Attachments
+- **Hosted Content**
+  - Download hosted content (images, files) from chat and channel messages
+  - Access inline images and attachments shared in conversations
 
 ### 🔍 Advanced Search & Discovery
 - **Message Search**
@@ -76,6 +90,8 @@ The following tools now support rich message formatting in Teams channels and ch
 - `send_channel_message`
 - `send_chat_message`
 - `reply_to_channel_message`
+- `update_channel_message`
+- `update_chat_message`
 
 ### Format Options
 
@@ -151,8 +167,9 @@ npm run auth
 - `Channel.ReadBasic.All` - Read channel information
 - `ChannelMessage.Read.All` - Read channel messages
 - `ChannelMessage.Send` - Send channel messages
+- `ChannelMessage.ReadWrite` - Edit and delete channel messages
 - `Chat.Read` - Read chat messages
-- `Chat.ReadWrite` - Create and manage chats
+- `Chat.ReadWrite` - Create and manage chats (including edit/delete messages)
 - `Mail.Read` - Required for Microsoft Search API
 - `Calendars.Read` - Required for Microsoft Search API
 - `Files.Read.All` - Required for Microsoft Search API
@@ -185,6 +202,8 @@ npm run build && node dist/index.js
 - `list_channels` - List channels in a specific team
 - `get_channel_messages` - Retrieve messages from a team channel with pagination and filtering
 - `send_channel_message` - Send a message to a team channel
+- `update_channel_message` - Edit a previously sent channel message
+- `delete_channel_message` - Soft delete a channel message (supports replies)
 - `list_team_members` - List members of a specific team
 
 #### Chat Operations
@@ -192,6 +211,11 @@ npm run build && node dist/index.js
 - `get_chat_messages` - Retrieve messages from a specific chat with pagination and filtering
 - `send_chat_message` - Send a message to a chat
 - `create_chat` - Create a new 1:1 or group chat
+- `update_chat_message` - Edit a previously sent chat message
+- `delete_chat_message` - Soft delete a chat message
+
+#### Media Operations
+- `download_message_hosted_content` - Download hosted content (images, files) from messages
 
 #### Search Operations
 - `search_messages` - Search across all Teams messages using KQL syntax
