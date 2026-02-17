@@ -761,9 +761,7 @@ describe("Chat Tools", () => {
         },
         importance: "normal",
       });
-      expect(result.content[0].text).toBe(
-        "✅ Message updated successfully. Message ID: msg456"
-      );
+      expect(result.content[0].text).toBe("✅ Message updated successfully. Message ID: msg456");
     });
 
     it("should update message with markdown format", async () => {
@@ -842,7 +840,9 @@ describe("Chat Tools", () => {
         return mockPatchChain;
       });
 
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+        // suppress console.warn in test
+      });
 
       const result = await updateChatMessageHandler({
         chatId: "chat123",
@@ -911,9 +911,7 @@ describe("Chat Tools", () => {
         "/users/current-user-id/chats/chat123/messages/msg456/softDelete"
       );
       expect(mockDeleteChain.post).toHaveBeenCalledWith({});
-      expect(result.content[0].text).toBe(
-        "✅ Message deleted successfully. Message ID: msg456"
-      );
+      expect(result.content[0].text).toBe("✅ Message deleted successfully. Message ID: msg456");
     });
 
     it("should handle delete errors", async () => {

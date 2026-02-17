@@ -960,9 +960,7 @@ describe("Teams Tools", () => {
         message: "Updated",
       });
 
-      expect(result.content[0].text).toBe(
-        "❌ Failed to update channel message: Forbidden"
-      );
+      expect(result.content[0].text).toBe("❌ Failed to update channel message: Forbidden");
       expect(result.isError).toBe(true);
     });
   });
@@ -987,9 +985,7 @@ describe("Teams Tools", () => {
         "/teams/test-team-id/channels/test-channel-id/messages/msg-123/softDelete"
       );
       expect(mockApiChain.post).toHaveBeenCalledWith({});
-      expect(result.content[0].text).toBe(
-        "✅ Message deleted successfully. Message ID: msg-123"
-      );
+      expect(result.content[0].text).toBe("✅ Message deleted successfully. Message ID: msg-123");
     });
 
     it("should soft delete a reply message", async () => {
@@ -1012,9 +1008,7 @@ describe("Teams Tools", () => {
         "/teams/test-team-id/channels/test-channel-id/messages/msg-123/replies/reply-456/softDelete"
       );
       expect(mockApiChain.post).toHaveBeenCalledWith({});
-      expect(result.content[0].text).toBe(
-        "✅ Reply deleted successfully. Reply ID: reply-456"
-      );
+      expect(result.content[0].text).toBe("✅ Reply deleted successfully. Reply ID: reply-456");
     });
 
     it("should handle delete channel message errors", async () => {
@@ -1032,9 +1026,7 @@ describe("Teams Tools", () => {
         messageId: "msg-123",
       });
 
-      expect(result.content[0].text).toBe(
-        "❌ Failed to delete message: Not found"
-      );
+      expect(result.content[0].text).toBe("❌ Failed to delete message: Not found");
       expect(result.isError).toBe(true);
     });
   });
