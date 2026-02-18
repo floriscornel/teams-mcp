@@ -1067,7 +1067,7 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
         const client = await graphService.getClient();
 
         // Build endpoint based on whether it's a reply or main message
-        // POST /teams/{teamsId}/channels/{channelId}/messages/{chatMessageId}/softDelete
+        // POST /teams/{teamId}/channels/{channelId}/messages/{chatMessageId}/softDelete
         // POST /teams/{teamId}/channels/{channelId}/messages/{messageId}/replies/{replyId}/softDelete
         const endpoint = replyId
           ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}/softDelete`
@@ -1084,12 +1084,13 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
             },
           ],
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
         return {
           content: [
             {
               type: "text" as const,
-              text: `❌ Failed to delete ${replyId ? "reply" : "message"}: ${error.message}`,
+              text: `❌ Failed to delete ${replyId ? "reply" : "message"}: ${errorMessage}`,
             },
           ],
           isError: true,
@@ -1106,6 +1107,10 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
       teamId: z.string().describe("Team ID"),
       channelId: z.string().describe("Channel ID"),
       messageId: z.string().describe("Message ID to update"),
+      replyId: z
+        .string()
+        .optional()
+        .describe("Reply ID if updating a reply to a message (optional)"),
       message: z.string().describe("New message content"),
       importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
       format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
@@ -1125,8 +1130,9 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
       teamId,
       channelId,
       messageId,
+      replyId,
       message,
-      importance = "normal",
+      importance,
       format = "text",
       mentions,
     }) => {
@@ -1160,6 +1166,9 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
                 displayName: userResponse.displayName || mention.mention,
               });
             } catch (_error) {
+              console.warn(
+                `Could not resolve user ${mention.userId}, using mention text as display name`
+              );
               mentionMappings.push({
                 mention: mention.mention,
                 userId: mention.userId,
@@ -1188,20 +1197,23 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
             content,
             contentType,
           },
-          importance,
         };
+
+        if (importance) {
+          messagePayload.importance = importance;
+        }
 
         if (finalMentions.length > 0) {
           messagePayload.mentions = finalMentions;
         }
 
         // Update the message using PATCH
-        // Endpoint: PATCH /teams/{team-id}/channels/{channel-id}/messages/{message-id}
-        await client
-          .api(`/teams/${teamId}/channels/${channelId}/messages/${messageId}`)
-          .patch(messagePayload);
+        const endpoint = replyId
+          ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}`
+          : `/teams/${teamId}/channels/${channelId}/messages/${messageId}`;
+        await client.api(endpoint).patch(messagePayload);
 
-        const successText = `✅ Channel message updated successfully. Message ID: ${messageId}${
+        const successText = `✅ Channel ${replyId ? "reply" : "message"} updated successfully.${replyId ? ` Reply ID: ${replyId}` : ` Message ID: ${messageId}`}${
           finalMentions.length > 0
             ? `\n📱 Mentions: ${finalMentions.map((m) => m.mentionText).join(", ")}`
             : ""
@@ -1215,12 +1227,13 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
             },
           ],
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
         return {
           content: [
             {
               type: "text" as const,
-              text: `❌ Failed to update channel message: ${error.message}`,
+              text: `❌ Failed to update channel message: ${errorMessage}`,
             },
           ],
           isError: true,

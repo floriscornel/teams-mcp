@@ -870,11 +870,37 @@ describe("Teams Tools", () => {
           content: "Updated message",
           contentType: "text",
         },
-        importance: "normal",
       });
       expect(result.content[0].text).toBe(
         "✅ Channel message updated successfully. Message ID: msg-123"
       );
+    });
+
+    it("should update channel message with explicit importance", async () => {
+      const mockApiChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn(),
+        post: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("update_channel_message");
+      await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        message: "Urgent update",
+        importance: "urgent",
+      });
+
+      expect(mockApiChain.patch).toHaveBeenCalledWith({
+        body: {
+          content: "Urgent update",
+          contentType: "text",
+        },
+        importance: "urgent",
+      });
     });
 
     it("should update channel message with markdown format", async () => {
@@ -900,7 +926,6 @@ describe("Teams Tools", () => {
           content: expect.stringContaining("<strong>Bold</strong>"),
           contentType: "html",
         },
-        importance: "normal",
       });
       expect(result.content[0].text).toContain("✅ Channel message updated successfully");
     });

@@ -69,7 +69,7 @@ To use this MCP server in Cursor/Claude/VS Code, add the following configuration
   - Update (edit) sent messages in chats and channels
   - Soft delete messages in chats and channels (marks as deleted without permanent removal)
   - Only message senders can update/delete their own messages
-  - Support for markdown formatting, mentions, and importance levels on edits
+  - Support for Markdown formatting, mentions, and importance levels on edits
 
 ### 📎 Media & Attachments
 - **Hosted Content**

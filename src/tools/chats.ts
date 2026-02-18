@@ -474,7 +474,7 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
   // Update/Edit a chat message
   server.tool(
     "update_chat_message",
-    "Update (edit) a chat message that was previously sent. Only the message sender can update their own messages. Supports updating content, mentions, attachments, and other properties.",
+    "Update (edit) a chat message that was previously sent. Only the message sender can update their own messages. Supports updating content with text or Markdown formatting, mentions, and importance levels.",
     {
       chatId: z.string().describe("Chat ID"),
       messageId: z.string().describe("Message ID to update"),
@@ -493,7 +493,7 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
         .optional()
         .describe("Array of @mentions to include in the message"),
     },
-    async ({ chatId, messageId, message, importance = "normal", format = "text", mentions }) => {
+    async ({ chatId, messageId, message, importance, format = "text", mentions }) => {
       try {
         const client = await graphService.getClient();
 
@@ -559,8 +559,11 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
             content,
             contentType,
           },
-          importance,
         };
+
+        if (importance) {
+          messagePayload.importance = importance;
+        }
 
         if (finalMentions.length > 0) {
           messagePayload.mentions = finalMentions;
@@ -586,12 +589,13 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
             },
           ],
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
         return {
           content: [
             {
               type: "text" as const,
-              text: `❌ Failed to update message: ${error.message}`,
+              text: `❌ Failed to update message: ${errorMessage}`,
             },
           ],
           isError: true,
@@ -629,12 +633,13 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
             },
           ],
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
         return {
           content: [
             {
               type: "text" as const,
-              text: `❌ Failed to delete message: ${error.message}`,
+              text: `❌ Failed to delete message: ${errorMessage}`,
             },
           ],
           isError: true,

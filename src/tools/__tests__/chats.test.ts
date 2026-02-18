@@ -759,9 +759,30 @@ describe("Chat Tools", () => {
           content: "Updated text",
           contentType: "text",
         },
-        importance: "normal",
       });
       expect(result.content[0].text).toBe("✅ Message updated successfully. Message ID: msg456");
+    });
+
+    it("should update message with explicit importance", async () => {
+      const mockApiChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      await updateChatMessageHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        message: "Urgent update",
+        importance: "urgent",
+      });
+
+      expect(mockApiChain.patch).toHaveBeenCalledWith({
+        body: {
+          content: "Urgent update",
+          contentType: "text",
+        },
+        importance: "urgent",
+      });
     });
 
     it("should update message with markdown format", async () => {
@@ -782,7 +803,6 @@ describe("Chat Tools", () => {
           content: expect.stringContaining("<strong>Bold</strong>"),
           contentType: "html",
         },
-        importance: "normal",
       });
       expect(result.content[0].text).toContain("✅ Message updated successfully");
     });
