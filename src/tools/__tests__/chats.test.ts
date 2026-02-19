@@ -29,7 +29,7 @@ describe("Chat Tools", () => {
     it("should register all chat tools", () => {
       registerChatTools(mockServer, mockGraphService);
 
-      expect(mockServer.tool).toHaveBeenCalledTimes(4);
+      expect(mockServer.tool).toHaveBeenCalledTimes(6);
       expect(mockServer.tool).toHaveBeenCalledWith(
         "list_chats",
         expect.any(String),
@@ -50,6 +50,18 @@ describe("Chat Tools", () => {
       );
       expect(mockServer.tool).toHaveBeenCalledWith(
         "create_chat",
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(mockServer.tool).toHaveBeenCalledWith(
+        "update_chat_message",
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(mockServer.tool).toHaveBeenCalledWith(
+        "delete_chat_message",
         expect.any(String),
         expect.any(Object),
         expect.any(Function)
@@ -715,6 +727,235 @@ describe("Chat Tools", () => {
       expect(result.content[0].text).toBe(
         "✅ Message sent successfully. Message ID: fallbackmsg123"
       );
+    });
+  });
+
+  describe("update_chat_message", () => {
+    let updateChatMessageHandler: (args?: any) => Promise<any>;
+
+    beforeEach(() => {
+      registerChatTools(mockServer, mockGraphService);
+      const call = vi
+        .mocked(mockServer.tool)
+        .mock.calls.find(([name]) => name === "update_chat_message");
+      updateChatMessageHandler = call?.[3] as unknown as (args?: any) => Promise<any>;
+    });
+
+    it("should update message with text content", async () => {
+      const mockApiChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await updateChatMessageHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        message: "Updated text",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith("/me/chats/chat123/messages/msg456");
+      expect(mockApiChain.patch).toHaveBeenCalledWith({
+        body: {
+          content: "Updated text",
+          contentType: "text",
+        },
+      });
+      expect(result.content[0].text).toBe("✅ Message updated successfully. Message ID: msg456");
+    });
+
+    it("should update message with explicit importance", async () => {
+      const mockApiChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      await updateChatMessageHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        message: "Urgent update",
+        importance: "urgent",
+      });
+
+      expect(mockApiChain.patch).toHaveBeenCalledWith({
+        body: {
+          content: "Urgent update",
+          contentType: "text",
+        },
+        importance: "urgent",
+      });
+    });
+
+    it("should update message with markdown format", async () => {
+      const mockApiChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await updateChatMessageHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        message: "**Bold** _Italic_",
+        format: "markdown",
+      });
+
+      expect(mockApiChain.patch).toHaveBeenCalledWith({
+        body: {
+          content: expect.stringContaining("<strong>Bold</strong>"),
+          contentType: "html",
+        },
+      });
+      expect(result.content[0].text).toContain("✅ Message updated successfully");
+    });
+
+    it("should update message with mentions", async () => {
+      const mockPatchChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockUserChain = {
+        select: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue({ displayName: "John Doe" }),
+        }),
+      };
+
+      mockClient.api = vi.fn().mockImplementation((url: string) => {
+        if (url.startsWith("/users/")) {
+          return mockUserChain;
+        }
+        return mockPatchChain;
+      });
+
+      const result = await updateChatMessageHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        message: "Hello @johndoe!",
+        mentions: [{ mention: "@johndoe", userId: "user-id-1" }],
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith("/users/user-id-1");
+      expect(mockUserChain.select).toHaveBeenCalledWith("displayName");
+      expect(mockPatchChain.patch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({ contentType: "html" }),
+          mentions: expect.any(Array),
+        })
+      );
+      expect(result.content[0].text).toContain("✅ Message updated successfully");
+      expect(result.content[0].text).toContain("Mentions:");
+    });
+
+    it("should fallback to mention text when user resolution fails", async () => {
+      const mockPatchChain = {
+        patch: vi.fn().mockResolvedValue(undefined),
+      };
+      const mockUserChain = {
+        select: vi.fn().mockReturnValue({
+          get: vi.fn().mockRejectedValue(new Error("User not found")),
+        }),
+      };
+
+      mockClient.api = vi.fn().mockImplementation((url: string) => {
+        if (url.startsWith("/users/")) {
+          return mockUserChain;
+        }
+        return mockPatchChain;
+      });
+
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+        // suppress console.warn in test
+      });
+
+      const result = await updateChatMessageHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        message: "Hello @unknown!",
+        mentions: [{ mention: "@unknown", userId: "bad-id" }],
+      });
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Could not resolve user bad-id")
+      );
+      expect(result.content[0].text).toContain("✅ Message updated successfully");
+      consoleWarnSpy.mockRestore();
+    });
+
+    it("should handle update errors", async () => {
+      const mockApiChain = {
+        patch: vi.fn().mockRejectedValue(new Error("Permission denied")),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await updateChatMessageHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        message: "Updated text",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to update message: Permission denied");
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("delete_chat_message", () => {
+    let deleteChatMessageHandler: (args?: any) => Promise<any>;
+
+    beforeEach(() => {
+      registerChatTools(mockServer, mockGraphService);
+      const call = vi
+        .mocked(mockServer.tool)
+        .mock.calls.find(([name]) => name === "delete_chat_message");
+      deleteChatMessageHandler = call?.[3] as unknown as (args?: any) => Promise<any>;
+    });
+
+    it("should soft delete a chat message", async () => {
+      const mockMeChain = {
+        get: vi.fn().mockResolvedValue({ id: "current-user-id" }),
+      };
+      const mockDeleteChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+      };
+
+      mockClient.api = vi.fn().mockImplementation((url: string) => {
+        if (url === "/me") {
+          return mockMeChain;
+        }
+        return mockDeleteChain;
+      });
+
+      const result = await deleteChatMessageHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith("/me");
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/users/current-user-id/chats/chat123/messages/msg456/softDelete"
+      );
+      expect(mockDeleteChain.post).toHaveBeenCalledWith({});
+      expect(result.content[0].text).toBe("✅ Message deleted successfully. Message ID: msg456");
+    });
+
+    it("should handle delete errors", async () => {
+      const mockMeChain = {
+        get: vi.fn().mockResolvedValue({ id: "current-user-id" }),
+      };
+      const mockDeleteChain = {
+        post: vi.fn().mockRejectedValue(new Error("Forbidden")),
+      };
+
+      mockClient.api = vi.fn().mockImplementation((url: string) => {
+        if (url === "/me") {
+          return mockMeChain;
+        }
+        return mockDeleteChain;
+      });
+
+      const result = await deleteChatMessageHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to delete message: Forbidden");
+      expect(result.isError).toBe(true);
     });
   });
 

@@ -14,6 +14,14 @@ import type {
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml } from "../utils/users.js";
 
+/**
+ * Registers all chat-related MCP tools on the given server.
+ * Tools include: list_chats, get_chat_messages, send_chat_message,
+ * create_chat, update_chat_message, and delete_chat_message.
+ *
+ * @param server - The MCP server instance to register tools on.
+ * @param graphService - The Microsoft Graph service used for API calls.
+ */
 export function registerChatTools(server: McpServer, graphService: GraphService) {
   // List user's chats
   server.tool(
@@ -458,6 +466,183 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
               text: `❌ Error: ${errorMessage}`,
             },
           ],
+        };
+      }
+    }
+  );
+
+  // Update/Edit a chat message
+  server.tool(
+    "update_chat_message",
+    "Update (edit) a chat message that was previously sent. Only the message sender can update their own messages. Supports updating content with text or Markdown formatting, mentions, and importance levels.",
+    {
+      chatId: z.string().describe("Chat ID"),
+      messageId: z.string().describe("Message ID to update"),
+      message: z.string().describe("New message content"),
+      importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+      format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
+      mentions: z
+        .array(
+          z.object({
+            mention: z
+              .string()
+              .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
+            userId: z.string().describe("Azure AD User ID of the mentioned user"),
+          })
+        )
+        .optional()
+        .describe("Array of @mentions to include in the message"),
+    },
+    async ({ chatId, messageId, message, importance, format = "text", mentions }) => {
+      try {
+        const client = await graphService.getClient();
+
+        // Process message content based on format
+        let content: string;
+        let contentType: "text" | "html";
+
+        if (format === "markdown") {
+          content = await markdownToHtml(message);
+          contentType = "html";
+        } else {
+          content = message;
+          contentType = "text";
+        }
+
+        // Process @mentions if provided
+        const mentionMappings: Array<{ mention: string; userId: string; displayName: string }> = [];
+        if (mentions && mentions.length > 0) {
+          // Convert provided mentions to mappings with display names
+          for (const mention of mentions) {
+            try {
+              // Get user info to get display name
+              const userResponse = await client
+                .api(`/users/${mention.userId}`)
+                .select("displayName")
+                .get();
+              mentionMappings.push({
+                mention: mention.mention,
+                userId: mention.userId,
+                displayName: userResponse.displayName || mention.mention,
+              });
+            } catch (_error) {
+              console.warn(
+                `Could not resolve user ${mention.userId}, using mention text as display name`
+              );
+              mentionMappings.push({
+                mention: mention.mention,
+                userId: mention.userId,
+                displayName: mention.mention,
+              });
+            }
+          }
+        }
+
+        // Process mentions in HTML content
+        let finalMentions: Array<{
+          id: number;
+          mentionText: string;
+          mentioned: { user: { id: string } };
+        }> = [];
+        if (mentionMappings.length > 0) {
+          const result = processMentionsInHtml(content, mentionMappings);
+          content = result.content;
+          finalMentions = result.mentions;
+
+          // Ensure we're using HTML content type when mentions are present
+          contentType = "html";
+        }
+
+        // Build message payload for update
+        const messagePayload: any = {
+          body: {
+            content,
+            contentType,
+          },
+        };
+
+        if (importance) {
+          messagePayload.importance = importance;
+        }
+
+        if (finalMentions.length > 0) {
+          messagePayload.mentions = finalMentions;
+        }
+
+        // Update the message using PATCH
+        // Note: Using /me/chats/ endpoint for delegated permissions
+        // The API also requires proper permissions: Chat.ReadWrite
+        await client.api(`/me/chats/${chatId}/messages/${messageId}`).patch(messagePayload);
+
+        // Build success message
+        const successText = `✅ Message updated successfully. Message ID: ${messageId}${
+          finalMentions.length > 0
+            ? `\n📱 Mentions: ${finalMentions.map((m) => m.mentionText).join(", ")}`
+            : ""
+        }`;
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: successText,
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `❌ Failed to update message: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Soft delete a chat message
+  server.tool(
+    "delete_chat_message",
+    "Soft delete a chat message that was previously sent. Only the message sender can delete their own messages. The message will be marked as deleted but can still be seen as '[This message has been deleted]'.",
+    {
+      chatId: z.string().describe("Chat ID"),
+      messageId: z.string().describe("Message ID to delete"),
+    },
+    async ({ chatId, messageId }) => {
+      try {
+        const client = await graphService.getClient();
+
+        // Get current user ID for the endpoint
+        const me = (await client.api("/me").get()) as { id: string };
+
+        // Soft delete the message using POST
+        // Endpoint: POST /users/{userId}/chats/{chatsId}/messages/{chatMessageId}/softDelete
+        await client
+          .api(`/users/${me.id}/chats/${chatId}/messages/${messageId}/softDelete`)
+          .post({});
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `✅ Message deleted successfully. Message ID: ${messageId}`,
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `❌ Failed to delete message: ${errorMessage}`,
+            },
+          ],
+          isError: true,
         };
       }
     }
