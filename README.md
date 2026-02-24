@@ -166,7 +166,7 @@ Use the `contentFormat` parameter to control how message content is returned:
 | `<code>text</code>` | `` `text` `` |
 | `<a href="url">text</a>` | `[text](url)` |
 | `<ul><li>item</li></ul>` | `- item` |
-| `<table>...</table>` | GFM markdown table |
+| `<table>...</table>` | GFM Markdown table |
 | `<attachment id="...">` | *(removed)* |
 | `<systemEventMessage/>` | *(removed)* |
 | `<hr>` | `---` |

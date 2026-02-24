@@ -47,11 +47,6 @@ export function htmlToMarkdown(html: string): string {
     return "";
   }
 
-  // Skip system event messages entirely
-  if (html.includes("<systemEventMessage")) {
-    return "";
-  }
-
   return turndownService.turndown(html).trim();
 }
 
