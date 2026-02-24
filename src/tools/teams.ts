@@ -18,6 +18,7 @@ import {
   isValidImageType,
   uploadImageAsHostedContent,
 } from "../utils/attachments.js";
+import { formatMessageContent } from "../utils/html-to-markdown.js";
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml, searchUsers, type UserInfo } from "../utils/users.js";
 
@@ -150,8 +151,15 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
         .optional()
         .default(20)
         .describe("Number of messages to retrieve (default: 20)"),
+      contentFormat: z
+        .enum(["raw", "markdown"])
+        .optional()
+        .default("markdown")
+        .describe(
+          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+        ),
     },
-    async ({ teamId, channelId, limit }) => {
+    async ({ teamId, channelId, limit, contentFormat }) => {
       try {
         const client = await graphService.getClient();
 
@@ -175,9 +183,10 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
           };
         }
 
+        const effectiveContentFormat = contentFormat ?? "markdown";
         const messageList: MessageSummary[] = response.value.map((message: ChatMessage) => ({
           id: message.id,
-          content: message.body?.content,
+          content: formatMessageContent(message.body?.content, effectiveContentFormat),
           from: message.from?.user?.displayName,
           createdDateTime: message.createdDateTime,
           importance: message.importance,
@@ -444,8 +453,15 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
         .optional()
         .default(20)
         .describe("Number of replies to retrieve (default: 20)"),
+      contentFormat: z
+        .enum(["raw", "markdown"])
+        .optional()
+        .default("markdown")
+        .describe(
+          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+        ),
     },
-    async ({ teamId, channelId, messageId, limit }) => {
+    async ({ teamId, channelId, messageId, limit, contentFormat }) => {
       try {
         const client = await graphService.getClient();
 
@@ -470,9 +486,10 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
           };
         }
 
+        const effectiveContentFormat = contentFormat ?? "markdown";
         const repliesList: MessageSummary[] = response.value.map((reply: ChatMessage) => ({
           id: reply.id,
-          content: reply.body?.content,
+          content: formatMessageContent(reply.body?.content, effectiveContentFormat),
           from: reply.from?.user?.displayName,
           createdDateTime: reply.createdDateTime,
           importance: reply.importance,
