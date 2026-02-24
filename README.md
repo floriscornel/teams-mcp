@@ -140,6 +140,58 @@ If `format` is not specified, the message will be sent as plain text.
 - **Blockquotes**: `> quoted text`
 - **Tables**: GitHub-flavored markdown tables
 
+## LLM-Friendly Content Format
+
+Messages retrieved from the Microsoft Graph API are returned as raw HTML containing Teams-specific tags. To make this content more consumable by AI assistants, the following tools support automatic HTML-to-Markdown conversion:
+
+- `get_chat_messages`
+- `get_channel_messages`
+- `get_channel_message_replies`
+- `search_messages`
+- `get_my_mentions`
+
+### Content Format Options
+
+Use the `contentFormat` parameter to control how message content is returned:
+- `markdown` (default): Converts Teams HTML to clean Markdown, optimized for LLM consumption
+- `raw`: Returns the original HTML from the Microsoft Graph API
+
+### What Gets Converted
+
+| HTML Element | Markdown Output |
+|---|---|
+| `<at id="0">Name</at>` (Teams mention) | `@Name` |
+| `<strong>text</strong>` | `**text**` |
+| `<em>text</em>` | `*text*` |
+| `<code>text</code>` | `` `text` `` |
+| `<a href="url">text</a>` | `[text](url)` |
+| `<ul><li>item</li></ul>` | `- item` |
+| `<table>...</table>` | GFM markdown table |
+| `<attachment id="...">` | *(removed)* |
+| `<systemEventMessage/>` | *(removed)* |
+| `<hr>` | `---` |
+| `&nbsp;`, `&amp;`, etc. | Decoded to plain characters |
+
+### Example Usage
+
+```json
+{
+  "chatId": "19:meeting_...",
+  "limit": 10,
+  "contentFormat": "markdown"
+}
+```
+
+To get the original HTML (previous default behavior):
+
+```json
+{
+  "chatId": "19:meeting_...",
+  "limit": 10,
+  "contentFormat": "raw"
+}
+```
+
 ## 📦 Installation
 
 ```bash
