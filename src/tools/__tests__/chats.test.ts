@@ -29,7 +29,7 @@ describe("Chat Tools", () => {
     it("should register all chat tools", () => {
       registerChatTools(mockServer, mockGraphService);
 
-      expect(mockServer.tool).toHaveBeenCalledTimes(6);
+      expect(mockServer.tool).toHaveBeenCalledTimes(7);
       expect(mockServer.tool).toHaveBeenCalledWith(
         "list_chats",
         expect.any(String),
@@ -62,6 +62,12 @@ describe("Chat Tools", () => {
       );
       expect(mockServer.tool).toHaveBeenCalledWith(
         "delete_chat_message",
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(mockServer.tool).toHaveBeenCalledWith(
+        "send_file_to_chat",
         expect.any(String),
         expect.any(Object),
         expect.any(Function)
