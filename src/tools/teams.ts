@@ -1279,21 +1279,22 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
           fileName
         );
 
+        // Build message content — must be HTML with attachment reference tag
         let content = "";
-        let contentType: "text" | "html" = "text";
         if (message) {
           if (format === "markdown") {
             content = await markdownToHtml(message);
-            contentType = "html";
           } else {
             content = message;
-            contentType = "text";
           }
         }
 
+        const attachmentTag = `<attachment id="${uploadResult.attachmentId}"></attachment>`;
+        content = content ? `${content}<br>${attachmentTag}` : attachmentTag;
+
         const attachments = buildFileAttachment(uploadResult);
         const messagePayload: any = {
-          body: { content, contentType },
+          body: { content, contentType: "html" },
           importance,
           attachments,
         };
