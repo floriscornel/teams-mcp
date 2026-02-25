@@ -142,7 +142,7 @@ async function uploadLargeFile(
       body: new Uint8Array(chunk),
     });
 
-    if (!lastResponse.ok && lastResponse.status !== 202) {
+    if (!lastResponse.ok) {
       const errorText = await lastResponse.text();
       throw new Error(`Upload chunk failed (${lastResponse.status}): ${errorText}`);
     }
@@ -154,6 +154,9 @@ async function uploadLargeFile(
     throw new Error("Upload failed: no response received");
   }
   const finalResult = await lastResponse.json();
+  if (!finalResult?.webUrl || !finalResult?.eTag) {
+    throw new Error("Upload failed: final response did not contain file metadata");
+  }
   return { webUrl: finalResult.webUrl, eTag: finalResult.eTag };
 }
 
@@ -209,7 +212,7 @@ export async function uploadFileToChat(
   const driveResponse = await client.api("/me/drive").get();
   const driveId: string = driveResponse.id;
 
-  const remotePath = `Microsoft Teams Chat Files/${encodeURIComponent(fileName)}`;
+  const remotePath = `${encodeURIComponent("Microsoft Teams Chat Files")}/${encodeURIComponent(fileName)}`;
   const uploadResult =
     size <= SIMPLE_UPLOAD_MAX_SIZE
       ? await simpleUpload(graphService, driveId, remotePath, buffer, mimeType)
