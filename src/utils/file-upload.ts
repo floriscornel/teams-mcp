@@ -243,6 +243,19 @@ export function buildFileAttachment(uploadResult: FileUploadResult): Array<{
 }
 
 /**
+ * Escape special HTML characters in plain text so it can be safely
+ * embedded inside an HTML message body.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * Format a file size in bytes to a human-readable string.
  */
 export function formatFileSize(bytes: number): string {

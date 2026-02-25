@@ -11,7 +11,12 @@ import type {
   MessageSummary,
   User,
 } from "../types/graph.js";
-import { buildFileAttachment, formatFileSize, uploadFileToChat } from "../utils/file-upload.js";
+import {
+  buildFileAttachment,
+  escapeHtml,
+  formatFileSize,
+  uploadFileToChat,
+} from "../utils/file-upload.js";
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml } from "../utils/users.js";
 
@@ -676,7 +681,7 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
           if (format === "markdown") {
             content = await markdownToHtml(message);
           } else {
-            content = message;
+            content = escapeHtml(message);
           }
         }
 
@@ -698,7 +703,7 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
           content: [
             {
               type: "text" as const,
-              text: `File sent successfully to chat.\nFile: ${uploadResult.fileName} (${formatFileSize(uploadResult.fileSize)})\nMessage ID: ${result.id}`,
+              text: `✅ File sent successfully to chat.\nFile: ${uploadResult.fileName} (${formatFileSize(uploadResult.fileSize)})\nMessage ID: ${result.id}`,
             },
           ],
         };
@@ -708,7 +713,7 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
           content: [
             {
               type: "text" as const,
-              text: `Failed to send file: ${errorMessage}`,
+              text: `❌ Failed to send file: ${errorMessage}`,
             },
           ],
           isError: true,

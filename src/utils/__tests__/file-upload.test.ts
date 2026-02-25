@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildFileAttachment,
   detectMimeType,
+  escapeHtml,
   extractGuidFromETag,
   type FileUploadResult,
   formatFileSize,
@@ -95,6 +96,33 @@ describe("buildFileAttachment", () => {
     const attachments = buildFileAttachment(uploadResult);
     expect(attachments).toHaveLength(1);
     expect(attachments[0].contentType).toBe("reference");
+  });
+});
+
+describe("escapeHtml", () => {
+  it("should escape ampersands", () => {
+    expect(escapeHtml("a & b")).toBe("a &amp; b");
+  });
+
+  it("should escape angle brackets", () => {
+    expect(escapeHtml("<div>hello</div>")).toBe("&lt;div&gt;hello&lt;/div&gt;");
+  });
+
+  it("should escape quotes", () => {
+    expect(escapeHtml('She said "hello"')).toBe("She said &quot;hello&quot;");
+    expect(escapeHtml("It's fine")).toBe("It&#39;s fine");
+  });
+
+  it("should escape all special characters together", () => {
+    expect(escapeHtml(`<a href="test">&'`)).toBe("&lt;a href=&quot;test&quot;&gt;&amp;&#39;");
+  });
+
+  it("should return plain text unchanged", () => {
+    expect(escapeHtml("Hello world")).toBe("Hello world");
+  });
+
+  it("should handle empty string", () => {
+    expect(escapeHtml("")).toBe("");
   });
 });
 

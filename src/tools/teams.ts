@@ -18,7 +18,12 @@ import {
   isValidImageType,
   uploadImageAsHostedContent,
 } from "../utils/attachments.js";
-import { buildFileAttachment, formatFileSize, uploadFileToChannel } from "../utils/file-upload.js";
+import {
+  buildFileAttachment,
+  escapeHtml,
+  formatFileSize,
+  uploadFileToChannel,
+} from "../utils/file-upload.js";
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml, searchUsers, type UserInfo } from "../utils/users.js";
 
@@ -1285,7 +1290,7 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
           if (format === "markdown") {
             content = await markdownToHtml(message);
           } else {
-            content = message;
+            content = escapeHtml(message);
           }
         }
 
@@ -1307,7 +1312,7 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
           content: [
             {
               type: "text" as const,
-              text: `File sent successfully to channel.\nFile: ${uploadResult.fileName} (${formatFileSize(uploadResult.fileSize)})\nMessage ID: ${result.id}`,
+              text: `✅ File sent successfully to channel.\nFile: ${uploadResult.fileName} (${formatFileSize(uploadResult.fileSize)})\nMessage ID: ${result.id}`,
             },
           ],
         };
@@ -1317,7 +1322,7 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
           content: [
             {
               type: "text" as const,
-              text: `Failed to send file: ${errorMessage}`,
+              text: `❌ Failed to send file: ${errorMessage}`,
             },
           ],
           isError: true,
