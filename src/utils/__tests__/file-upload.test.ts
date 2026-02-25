@@ -60,6 +60,12 @@ describe("extractGuidFromETag", () => {
     const result = extractGuidFromETag("some-random-string");
     expect(result).toBeTruthy();
   });
+
+  it("should split before stripping commas in fallback path", () => {
+    // Without braces, should split on comma first, then strip quotes
+    const eTag = '"some-guid,3"';
+    expect(extractGuidFromETag(eTag)).toBe("some-guid");
+  });
 });
 
 describe("buildFileAttachment", () => {

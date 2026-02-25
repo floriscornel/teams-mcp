@@ -71,7 +71,8 @@ export function extractGuidFromETag(eTag: string): string {
   if (match) {
     return match[1];
   }
-  return eTag.replace(/["{},]/g, "").split(",")[0] || eTag;
+  const [rawId] = eTag.split(",");
+  return rawId.replace(/["{}]/g, "") || eTag;
 }
 
 /**
