@@ -75,6 +75,10 @@ To use this MCP server in Cursor/Claude/VS Code, add the following configuration
 - **Hosted Content**
   - Download hosted content (images, files) from chat and channel messages
   - Access inline images and attachments shared in conversations
+- **File Upload**
+  - Upload and send any file type (PDF, DOCX, XLSX, ZIP, images, etc.) to channels and chats
+  - Large file support (>4 MB) via resumable upload sessions
+  - Optional message text, custom filename, formatting, and importance levels
 
 ### 🔍 Advanced Search & Discovery
 - **Message Search**
@@ -225,6 +229,7 @@ npm run auth
 - `Mail.Read` - Required for Microsoft Search API
 - `Calendars.Read` - Required for Microsoft Search API
 - `Files.Read.All` - Required for Microsoft Search API
+- `Files.ReadWrite.All` - Required for file uploads to channels and chats
 - `Sites.Read.All` - Required for Microsoft Search API
 
 ## 🛠️ Usage
@@ -257,6 +262,7 @@ npm run build && node dist/index.js
 - `update_channel_message` - Edit a previously sent channel message
 - `delete_channel_message` - Soft delete a channel message (supports replies)
 - `list_team_members` - List members of a specific team
+- `send_file_to_channel` - Upload a local file and send it as a message to a channel
 
 #### Chat Operations
 - `list_chats` - List user's chats (1:1 and group)
@@ -265,6 +271,7 @@ npm run build && node dist/index.js
 - `create_chat` - Create a new 1:1 or group chat
 - `update_chat_message` - Edit a previously sent chat message
 - `delete_chat_message` - Soft delete a chat message
+- `send_file_to_chat` - Upload a local file and send it as a message to a chat
 
 #### Media Operations
 - `download_message_hosted_content` - Download hosted content (images, files) from messages
