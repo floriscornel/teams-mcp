@@ -13,7 +13,17 @@ import type {
   GraphApiResponse,
   Team,
 } from "../../types/graph.js";
+import type { FileUploadResult } from "../../utils/file-upload.js";
 import { registerTeamsTools } from "../teams.js";
+
+// Mock file-upload module
+vi.mock("../../utils/file-upload.js", async () => {
+  const actual = (await vi.importActual("../../utils/file-upload.js")) as any;
+  return {
+    ...actual,
+    uploadFileToChannel: vi.fn(),
+  };
+});
 
 describe("Teams Tools", () => {
   let mockServer: any;
@@ -1353,6 +1363,161 @@ describe("Teams Tools", () => {
       });
 
       expect(result.content[0].text).toContain("❌ No hosted content found");
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("send_file_to_channel tool", () => {
+    it("should upload file and send message successfully", async () => {
+      const { uploadFileToChannel } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://sharepoint.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 2048,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChannel).mockResolvedValue(mockUploadResult);
+
+      const sentMessage = { ...mockChatMessage, id: "filemsg-channel-1" };
+      mockClient.api().post.mockResolvedValue(sentMessage);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_file_to_channel");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        filePath: "/tmp/report.pdf",
+      });
+
+      expect(result.content[0].text).toContain("✅ File sent successfully to channel.");
+      expect(result.content[0].text).toContain("report.pdf");
+      expect(result.content[0].text).toContain("Message ID: filemsg-channel-1");
+
+      // Verify the message payload includes attachment tag and reference
+      expect(mockClient.api().post).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            content: expect.stringContaining('<attachment id="AAAA-BBBB-CCCC"></attachment>'),
+            contentType: "html",
+          }),
+          attachments: [
+            {
+              id: "AAAA-BBBB-CCCC",
+              contentType: "reference",
+              contentUrl: "https://sharepoint.com/file.pdf",
+              name: "report.pdf",
+            },
+          ],
+        })
+      );
+    });
+
+    it("should include optional message with HTML escaping for plain text", async () => {
+      const { uploadFileToChannel } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://sharepoint.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 1024,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChannel).mockResolvedValue(mockUploadResult);
+
+      const sentMessage = { ...mockChatMessage, id: "filemsg-channel-2" };
+      mockClient.api().post.mockResolvedValue(sentMessage);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_file_to_channel");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        filePath: "/tmp/report.pdf",
+        message: "Check <this> & report",
+      });
+
+      expect(result.content[0].text).toContain("✅ File sent successfully to channel.");
+
+      // Plain text should be HTML-escaped
+      const postPayload = mockClient.api().post.mock.calls[0][0];
+      expect(postPayload.body.content).toContain("Check &lt;this&gt; &amp; report");
+      expect(postPayload.body.content).toContain('<attachment id="AAAA-BBBB-CCCC"></attachment>');
+    });
+
+    it("should handle markdown format for message", async () => {
+      const { uploadFileToChannel } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://sharepoint.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 1024,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChannel).mockResolvedValue(mockUploadResult);
+
+      const sentMessage = { ...mockChatMessage, id: "filemsg-channel-3" };
+      mockClient.api().post.mockResolvedValue(sentMessage);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_file_to_channel");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        filePath: "/tmp/report.pdf",
+        message: "**Bold** report",
+        format: "markdown",
+      });
+
+      expect(result.content[0].text).toContain("✅ File sent successfully to channel.");
+
+      const postPayload = mockClient.api().post.mock.calls[0][0];
+      expect(postPayload.body.content).toContain("<strong>Bold</strong>");
+      expect(postPayload.body.contentType).toBe("html");
+    });
+
+    it("should handle upload errors", async () => {
+      const { uploadFileToChannel } = await import("../../utils/file-upload.js");
+
+      vi.mocked(uploadFileToChannel).mockRejectedValue(new Error("File not found"));
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_file_to_channel");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        filePath: "/tmp/nonexistent.pdf",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to send file: File not found");
+      expect(result.isError).toBe(true);
+    });
+
+    it("should handle message send errors after successful upload", async () => {
+      const { uploadFileToChannel } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://sharepoint.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 1024,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChannel).mockResolvedValue(mockUploadResult);
+
+      mockClient.api().post.mockRejectedValue(new Error("Forbidden"));
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_file_to_channel");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        filePath: "/tmp/report.pdf",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to send file: Forbidden");
       expect(result.isError).toBe(true);
     });
   });
