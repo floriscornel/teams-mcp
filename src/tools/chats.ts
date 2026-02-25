@@ -17,6 +17,7 @@ import {
   formatFileSize,
   uploadFileToChat,
 } from "../utils/file-upload.js";
+import { formatMessageContent } from "../utils/html-to-markdown.js";
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml } from "../utils/users.js";
 
@@ -121,8 +122,25 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
         .describe(
           "Fetch all messages using pagination (up to limit). When true, follows @odata.nextLink to get more messages."
         ),
+      contentFormat: z
+        .enum(["raw", "markdown"])
+        .optional()
+        .default("markdown")
+        .describe(
+          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+        ),
     },
-    async ({ chatId, limit, since, until, fromUser, orderBy, descending, fetchAll }) => {
+    async ({
+      chatId,
+      limit,
+      since,
+      until,
+      fromUser,
+      orderBy,
+      descending,
+      fetchAll,
+      contentFormat,
+    }) => {
       try {
         const client = await graphService.getClient();
 
@@ -237,9 +255,10 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
         // Apply limit after filtering
         const limitedMessages = filteredMessages.slice(0, effectiveLimit);
 
+        const effectiveContentFormat = contentFormat ?? "markdown";
         const messageList: MessageSummary[] = limitedMessages.map((message: ChatMessage) => ({
           id: message.id,
-          content: message.body?.content,
+          content: formatMessageContent(message.body?.content, effectiveContentFormat),
           from: message.from?.user?.displayName,
           createdDateTime: message.createdDateTime,
         }));

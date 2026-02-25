@@ -2,17 +2,24 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { GraphService } from "../services/graph.js";
 import type { SearchHit, SearchRequest, SearchResponse } from "../types/graph.js";
+import { formatMessageContent } from "../utils/html-to-markdown.js";
 
 /**
  * Maps raw SearchHit objects from the Microsoft Search API into a
  * consistent, flat shape for tool responses.
+ *
+ * @param hits - Array of search hits from the Microsoft Search API
+ * @param contentFormat - Format for message content: "markdown" or "raw"
  */
-export function formatSearchHits(hits: SearchHit[]) {
+export function formatSearchHits(
+  hits: SearchHit[],
+  contentFormat: "raw" | "markdown" = "markdown"
+) {
   return hits.map((hit) => ({
     id: hit.resource.id,
     summary: hit.summary,
     rank: hit.rank,
-    content: hit.resource.body?.content,
+    content: formatMessageContent(hit.resource.body?.content, contentFormat),
     from: hit.resource.from?.user?.displayName,
     fromUserId: hit.resource.from?.user?.id,
     createdDateTime: hit.resource.createdDateTime,
@@ -64,8 +71,15 @@ export function registerSearchTools(server: McpServer, graphService: GraphServic
         .optional()
         .default(true)
         .describe("When true, results are ranked by relevance. When false, results are unranked"),
+      contentFormat: z
+        .enum(["raw", "markdown"])
+        .optional()
+        .default("markdown")
+        .describe(
+          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+        ),
     },
-    async ({ query, from, size, enableTopResults }) => {
+    async ({ query, from, size, enableTopResults, contentFormat }) => {
       try {
         const client = await graphService.getClient();
 
@@ -99,7 +113,7 @@ export function registerSearchTools(server: McpServer, graphService: GraphServic
                   size,
                   total: container.total,
                   moreResultsAvailable: container.moreResultsAvailable,
-                  results: formatSearchHits(container.hits),
+                  results: formatSearchHits(container.hits, contentFormat ?? "markdown"),
                 },
                 null,
                 2
@@ -134,8 +148,15 @@ export function registerSearchTools(server: McpServer, graphService: GraphServic
         .optional()
         .default(25)
         .describe("Maximum number of mentions to return"),
+      contentFormat: z
+        .enum(["raw", "markdown"])
+        .optional()
+        .default("markdown")
+        .describe(
+          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+        ),
     },
-    async ({ hours, size }) => {
+    async ({ hours, size, contentFormat }) => {
       try {
         const client = await graphService.getClient();
 
@@ -177,7 +198,7 @@ export function registerSearchTools(server: McpServer, graphService: GraphServic
                   mentionedUser: me?.displayName || "Current User",
                   total: container.total,
                   moreResultsAvailable: container.moreResultsAvailable,
-                  mentions: formatSearchHits(container.hits),
+                  mentions: formatSearchHits(container.hits, contentFormat ?? "markdown"),
                 },
                 null,
                 2
