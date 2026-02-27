@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphService } from "../../services/graph.js";
 import { server } from "../../test-utils/setup.js";
 import {
+  extractAttachmentSummaries,
   getFileExtensionFromMimeType,
   imageUrlToBase64,
   isValidImageType,
@@ -188,6 +189,71 @@ describe("Attachment Utilities", () => {
     it("should handle case insensitive mime types", () => {
       expect(getFileExtensionFromMimeType("IMAGE/JPEG")).toBe("jpg");
       expect(getFileExtensionFromMimeType("Image/PNG")).toBe("png");
+    });
+  });
+
+  describe("extractAttachmentSummaries", () => {
+    it("should return undefined for null input", () => {
+      expect(extractAttachmentSummaries(null)).toBeUndefined();
+    });
+
+    it("should return undefined for undefined input", () => {
+      expect(extractAttachmentSummaries(undefined)).toBeUndefined();
+    });
+
+    it("should return undefined for empty array", () => {
+      expect(extractAttachmentSummaries([])).toBeUndefined();
+    });
+
+    it("should extract basic attachment info", () => {
+      const result = extractAttachmentSummaries([
+        {
+          id: "att1",
+          name: "document.pdf",
+          contentType: "reference",
+          contentUrl: "https://example.com/doc.pdf",
+          thumbnailUrl: "https://example.com/thumb.jpg",
+        },
+      ]);
+      expect(result).toEqual([
+        {
+          id: "att1",
+          name: "document.pdf",
+          contentType: "reference",
+          contentUrl: "https://example.com/doc.pdf",
+          thumbnailUrl: "https://example.com/thumb.jpg",
+        },
+      ]);
+    });
+
+    it("should skip attachments with no identifying info", () => {
+      const result = extractAttachmentSummaries([{ id: null, name: null, contentUrl: null }]);
+      expect(result).toBeUndefined();
+    });
+
+    it("should handle multiple attachments", () => {
+      const result = extractAttachmentSummaries([
+        { id: "att1", name: "file1.pdf", contentType: "reference", contentUrl: "https://a.com/1" },
+        { id: "att2", name: "file2.docx", contentType: "reference", contentUrl: "https://a.com/2" },
+      ]);
+      expect(result).toHaveLength(2);
+      expect(result?.[0].id).toBe("att1");
+      expect(result?.[1].id).toBe("att2");
+    });
+
+    it("should normalize null values to undefined", () => {
+      const result = extractAttachmentSummaries([
+        { id: "att1", name: null, contentType: "reference", contentUrl: null, thumbnailUrl: null },
+      ]);
+      expect(result).toEqual([
+        {
+          id: "att1",
+          name: undefined,
+          contentType: "reference",
+          contentUrl: undefined,
+          thumbnailUrl: undefined,
+        },
+      ]);
     });
   });
 

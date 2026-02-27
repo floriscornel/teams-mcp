@@ -13,11 +13,13 @@ import type {
   TeamSummary,
 } from "../types/graph.js";
 import {
+  extractAttachmentSummaries,
   type ImageAttachment,
   imageUrlToBase64,
   isValidImageType,
   uploadImageAsHostedContent,
 } from "../utils/attachments.js";
+import { detectContentType } from "../utils/content-type.js";
 import {
   buildFileAttachment,
   escapeHtml,
@@ -196,10 +198,15 @@ export function registerTeamsTools(
         const effectiveContentFormat = contentFormat ?? "markdown";
         const messageList: MessageSummary[] = response.value.map((message: ChatMessage) => ({
           id: message.id,
-          content: formatMessageContent(message.body?.content, effectiveContentFormat),
+          content: formatMessageContent(
+            message.body?.content,
+            effectiveContentFormat,
+            message.mentions
+          ),
           from: message.from?.user?.displayName,
           createdDateTime: message.createdDateTime,
           importance: message.importance,
+          attachments: extractAttachmentSummaries(message.attachments),
         }));
 
         // Sort messages by creation date (newest first) since API doesn't support orderby
@@ -504,10 +511,15 @@ export function registerTeamsTools(
         const effectiveContentFormat = contentFormat ?? "markdown";
         const repliesList: MessageSummary[] = response.value.map((reply: ChatMessage) => ({
           id: reply.id,
-          content: formatMessageContent(reply.body?.content, effectiveContentFormat),
+          content: formatMessageContent(
+            reply.body?.content,
+            effectiveContentFormat,
+            reply.mentions
+          ),
           from: reply.from?.user?.displayName,
           createdDateTime: reply.createdDateTime,
           importance: reply.importance,
+          attachments: extractAttachmentSummaries(reply.attachments),
         }));
 
         // Sort replies by creation date (oldest first for replies)
@@ -979,7 +991,7 @@ export function registerTeamsTools(
             const base64Data = buffer.toString("base64");
 
             // Determine content type from the response or default to image/png
-            const contentType = "image/png"; // Graph API doesn't return content-type header easily
+            const contentType = detectContentType(buffer);
 
             const result: {
               id: string;
@@ -1010,6 +1022,17 @@ export function registerTeamsTools(
               const isUncPath =
                 normalizedPath.startsWith("\\\\") || normalizedPath.startsWith("//");
               console.error(`[DEBUG] isUncPath: ${isUncPath}`);
+
+              // Basic path traversal protection
+              if (!isUncPath && normalizedPath.includes("..")) {
+                results.push({
+                  id: contentId,
+                  contentType: "unknown",
+                  size: 0,
+                  error: "Path traversal not allowed",
+                });
+                continue;
+              }
 
               // If multiple files, append index to filename
               let finalPath = normalizedPath;
