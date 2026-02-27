@@ -1268,7 +1268,7 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
   // Send a file to a channel
   server.tool(
     "send_file_to_channel",
-    "Upload a local file and send it as a message to a Teams channel. Supports any file type (PDF, DOCX, ZIP, images, etc.). The file is uploaded to the channel's SharePoint folder and sent as a reference attachment.",
+    "Upload a local file and send it as a message to a Teams channel. Supports any file type (PDF, DOCX, ZIP, images, etc.). The file is uploaded to the channel's SharePoint folder and sent as a reference attachment. If messageId is provided, the file is sent as a reply to that message (thread).",
     {
       teamId: z.string().describe("Team ID"),
       channelId: z.string().describe("Channel ID"),
@@ -1280,6 +1280,12 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
         .describe("Optional custom filename (defaults to the original file name)"),
       format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
       importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+      messageId: z
+        .string()
+        .optional()
+        .describe(
+          "Optional message ID to reply to. When provided, the file is sent as a reply in the message thread instead of a new message."
+        ),
     },
     async ({
       teamId,
@@ -1289,6 +1295,7 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
       fileName,
       format = "text",
       importance = "normal",
+      messageId,
     }) => {
       try {
         const client = await graphService.getClient();
@@ -1321,15 +1328,19 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
           attachments,
         };
 
-        const result = (await client
-          .api(`/teams/${teamId}/channels/${channelId}/messages`)
-          .post(messagePayload)) as ChatMessage;
+        // If messageId is provided, send as a reply; otherwise send as a new message
+        const apiPath = messageId
+          ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies`
+          : `/teams/${teamId}/channels/${channelId}/messages`;
 
+        const result = (await client.api(apiPath).post(messagePayload)) as ChatMessage;
+
+        const replyInfo = messageId ? ` (reply to ${messageId})` : "";
         return {
           content: [
             {
               type: "text" as const,
-              text: `✅ File sent successfully to channel.\nFile: ${uploadResult.fileName} (${formatFileSize(uploadResult.fileSize)})\nMessage ID: ${result.id}`,
+              text: `✅ File sent successfully to channel${replyInfo}.\nFile: ${uploadResult.fileName} (${formatFileSize(uploadResult.fileSize)})\nMessage ID: ${result.id}`,
             },
           ],
         };

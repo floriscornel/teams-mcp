@@ -1520,5 +1520,73 @@ describe("Teams Tools", () => {
       expect(result.content[0].text).toBe("❌ Failed to send file: Forbidden");
       expect(result.isError).toBe(true);
     });
+
+    it("should send file as reply when messageId is provided", async () => {
+      const { uploadFileToChannel } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://sharepoint.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 2048,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChannel).mockResolvedValue(mockUploadResult);
+
+      const sentMessage = { ...mockChatMessage, id: "filemsg-reply-1" };
+      mockClient.api().post.mockResolvedValue(sentMessage);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_file_to_channel");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        filePath: "/tmp/report.pdf",
+        messageId: "parent-msg-123",
+      });
+
+      expect(result.content[0].text).toContain(
+        "✅ File sent successfully to channel (reply to parent-msg-123)."
+      );
+      expect(result.content[0].text).toContain("report.pdf");
+      expect(result.content[0].text).toContain("Message ID: filemsg-reply-1");
+
+      // Verify it used the replies endpoint
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/test-team-id/channels/test-channel-id/messages/parent-msg-123/replies"
+      );
+    });
+
+    it("should use messages endpoint when messageId is not provided", async () => {
+      const { uploadFileToChannel } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://sharepoint.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 1024,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChannel).mockResolvedValue(mockUploadResult);
+
+      const sentMessage = { ...mockChatMessage, id: "filemsg-new-1" };
+      mockClient.api().post.mockResolvedValue(sentMessage);
+      registerTeamsTools(mockServer, mockGraphService);
+
+      const tool = mockServer.getTool("send_file_to_channel");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        filePath: "/tmp/report.pdf",
+      });
+
+      expect(result.content[0].text).toContain("✅ File sent successfully to channel.");
+      expect(result.content[0].text).not.toContain("reply to");
+
+      // Verify it used the messages endpoint (not replies)
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/test-team-id/channels/test-channel-id/messages"
+      );
+    });
   });
 });
