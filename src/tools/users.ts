@@ -3,7 +3,11 @@ import { z } from "zod";
 import type { GraphService } from "../services/graph.js";
 import type { GraphApiResponse, User, UserSummary } from "../types/graph.js";
 
-export function registerUsersTools(server: McpServer, graphService: GraphService) {
+export function registerUsersTools(
+  server: McpServer,
+  graphService: GraphService,
+  _readOnly: boolean
+) {
   // Get current user
   server.tool(
     "get_current_user",

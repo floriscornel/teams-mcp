@@ -162,19 +162,19 @@ Use the `contentFormat` parameter to control how message content is returned:
 
 ### What Gets Converted
 
-| HTML Element | Markdown Output |
-|---|---|
-| `<at id="0">Name</at>` (Teams mention) | `@Name` |
-| `<strong>text</strong>` | `**text**` |
-| `<em>text</em>` | `*text*` |
-| `<code>text</code>` | `` `text` `` |
-| `<a href="url">text</a>` | `[text](url)` |
-| `<ul><li>item</li></ul>` | `- item` |
-| `<table>...</table>` | GFM Markdown table |
-| `<attachment id="...">` | *(removed)* |
-| `<systemEventMessage/>` | *(removed)* |
-| `<hr>` | `---` |
-| `&nbsp;`, `&amp;`, etc. | Decoded to plain characters |
+| HTML Element                           | Markdown Output             |
+| -------------------------------------- | --------------------------- |
+| `<at id="0">Name</at>` (Teams mention) | `@Name`                     |
+| `<strong>text</strong>`                | `**text**`                  |
+| `<em>text</em>`                        | `*text*`                    |
+| `<code>text</code>`                    | `` `text` ``                |
+| `<a href="url">text</a>`               | `[text](url)`               |
+| `<ul><li>item</li></ul>`               | `- item`                    |
+| `<table>...</table>`                   | GFM Markdown table          |
+| `<attachment id="...">`                | *(removed)*                 |
+| `<systemEventMessage/>`                | *(removed)*                 |
+| `<hr>`                                 | `---`                       |
+| `&nbsp;`, `&amp;`, etc.                | Decoded to plain characters |
 
 ### Example Usage
 
@@ -217,20 +217,28 @@ npm run auth
 - Azure App Registration with Microsoft Graph permissions
 
 ### Required Microsoft Graph Permissions
+
+**Full mode (default):**
 - `User.Read` - Read user profile
 - `User.ReadBasic.All` - Read basic user info
 - `Team.ReadBasic.All` - Read team information
 - `Channel.ReadBasic.All` - Read channel information
 - `ChannelMessage.Read.All` - Read channel messages
-- `ChannelMessage.Send` - Send channel messages
+- `ChannelMessage.Send` - Send channel messages and replies
 - `ChannelMessage.ReadWrite` - Edit and delete channel messages
-- `Chat.Read` - Read chat messages
-- `Chat.ReadWrite` - Create and manage chats (including edit/delete messages)
-- `Mail.Read` - Required for Microsoft Search API
-- `Calendars.Read` - Required for Microsoft Search API
-- `Files.Read.All` - Required for Microsoft Search API
+- `Chat.Read` - Read chat messages (included via read-only scopes)
+- `Chat.ReadWrite` - Create and manage chats, send/edit/delete chat messages (supersedes `Chat.Read`)
+- `TeamMember.Read.All` - Read team members
 - `Files.ReadWrite.All` - Required for file uploads to channels and chats
-- `Sites.Read.All` - Required for Microsoft Search API
+
+**Read-only mode** (`TEAMS_MCP_READ_ONLY=true`) — only these scopes are requested:
+- `User.Read`
+- `User.ReadBasic.All`
+- `Team.ReadBasic.All`
+- `Channel.ReadBasic.All`
+- `ChannelMessage.Read.All`
+- `TeamMember.Read.All`
+- `Chat.Read`
 
 ## 🛠️ Usage
 
@@ -241,13 +249,54 @@ npm run dev
 
 # Production mode
 npm run build && node dist/index.js
+
+# Start in read-only mode (disables all write tools)
+TEAMS_MCP_READ_ONLY=true node dist/index.js
 ```
+
+### Read-Only Mode
+
+The server supports a read-only mode that disables all write operations (sending messages, creating chats, uploading files, editing/deleting messages) and requests only read-permission scopes from Microsoft Graph.
+
+**Enable read-only mode** using either:
+- Environment variable: `TEAMS_MCP_READ_ONLY=true`
+- CLI flag: `--read-only`
+
+**Authenticate with reduced scopes:**
+```bash
+npx @floriscornel/teams-mcp@latest authenticate --read-only
+```
+
+**MCP server configuration (read-only):**
+```json
+{
+  "mcpServers": {
+    "teams-mcp": {
+      "command": "npx",
+      "args": ["-y", "@floriscornel/teams-mcp@latest"],
+      "env": {
+        "TEAMS_MCP_READ_ONLY": "true"
+      }
+    }
+  }
+}
+```
+
+**Switching modes:** When switching from read-only to full mode, the server detects the scope mismatch and warns you to re-authenticate:
+```bash
+npx @floriscornel/teams-mcp@latest authenticate
+```
+
+**Read-only tools (15):**
+`auth_status`, `get_current_user`, `search_users`, `get_user`, `list_teams`, `list_channels`, `get_channel_messages`, `get_channel_message_replies`, `list_team_members`, `search_users_for_mentions`, `download_message_hosted_content`, `list_chats`, `get_chat_messages`, `search_messages`, `get_my_mentions`
+
+**Write tools disabled in read-only mode (10):**
+`send_channel_message`, `reply_to_channel_message`, `update_channel_message`, `delete_channel_message`, `send_file_to_channel`, `send_chat_message`, `create_chat`, `update_chat_message`, `delete_chat_message`, `send_file_to_chat`
 
 ### Available MCP Tools
 
 #### Authentication
-- `authenticate` - Initiate OAuth authentication flow
-- `logout` - Clear authentication tokens
+- `auth_status` - Check current authentication status
 - `get_current_user` - Get authenticated user information
 
 #### User Operations
@@ -258,10 +307,13 @@ npm run build && node dist/index.js
 - `list_teams` - List user's joined teams
 - `list_channels` - List channels in a specific team
 - `get_channel_messages` - Retrieve messages from a team channel with pagination and filtering
+- `get_channel_message_replies` - Get replies to a specific channel message
 - `send_channel_message` - Send a message to a team channel
+- `reply_to_channel_message` - Reply to an existing channel message
 - `update_channel_message` - Edit a previously sent channel message
 - `delete_channel_message` - Soft delete a channel message (supports replies)
 - `list_team_members` - List members of a specific team
+- `search_users_for_mentions` - Search for team members to @mention in messages
 - `send_file_to_channel` - Upload a local file and send it as a message to a channel
 
 #### Chat Operations
@@ -278,7 +330,6 @@ npm run build && node dist/index.js
 
 #### Search Operations
 - `search_messages` - Search across all Teams messages using KQL syntax
-- `get_recent_messages` - Get recent messages with advanced filtering options
 - `get_my_mentions` - Find messages mentioning the current user
 
 ## 📋 Examples
@@ -288,7 +339,11 @@ npm run build && node dist/index.js
 First, authenticate with Microsoft Graph:
 
 ```bash
+# Full access (default)
 npx @floriscornel/teams-mcp@latest authenticate
+
+# Read-only (reduced permission scopes)
+npx @floriscornel/teams-mcp@latest authenticate --read-only
 ```
 
 Check your authentication status:

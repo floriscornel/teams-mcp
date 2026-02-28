@@ -37,7 +37,7 @@ describe("Chat Tools", () => {
 
   describe("registerChatTools", () => {
     it("should register all chat tools", () => {
-      registerChatTools(mockServer, mockGraphService);
+      registerChatTools(mockServer, mockGraphService, false);
 
       expect(mockServer.tool).toHaveBeenCalledTimes(7);
       expect(mockServer.tool).toHaveBeenCalledWith(
@@ -83,13 +83,31 @@ describe("Chat Tools", () => {
         expect.any(Function)
       );
     });
+
+    it("should register only read-only chat tools when readOnly is true", () => {
+      registerChatTools(mockServer, mockGraphService, true);
+
+      expect(mockServer.tool).toHaveBeenCalledTimes(2);
+      expect(mockServer.tool).toHaveBeenCalledWith(
+        "list_chats",
+        expect.any(String),
+        {},
+        expect.any(Function)
+      );
+      expect(mockServer.tool).toHaveBeenCalledWith(
+        "get_chat_messages",
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Function)
+      );
+    });
   });
 
   describe("list_chats", () => {
     let listChatsHandler: (args?: any) => Promise<any>;
 
     beforeEach(() => {
-      registerChatTools(mockServer, mockGraphService);
+      registerChatTools(mockServer, mockGraphService, false);
       const call = vi.mocked(mockServer.tool).mock.calls.find(([name]) => name === "list_chats");
       listChatsHandler = call?.[3] as unknown as (args: any) => Promise<any>;
     });
@@ -185,7 +203,7 @@ describe("Chat Tools", () => {
     let getChatMessagesHandler: (args?: any) => Promise<any>;
 
     beforeEach(() => {
-      registerChatTools(mockServer, mockGraphService);
+      registerChatTools(mockServer, mockGraphService, false);
       const call = vi
         .mocked(mockServer.tool)
         .mock.calls.find(([name]) => name === "get_chat_messages");
@@ -612,7 +630,7 @@ describe("Chat Tools", () => {
     let sendChatMessageHandler: (args?: any) => Promise<any>;
 
     beforeEach(() => {
-      registerChatTools(mockServer, mockGraphService);
+      registerChatTools(mockServer, mockGraphService, false);
       const call = vi
         .mocked(mockServer.tool)
         .mock.calls.find(([name]) => name === "send_chat_message");
@@ -750,7 +768,7 @@ describe("Chat Tools", () => {
     let updateChatMessageHandler: (args?: any) => Promise<any>;
 
     beforeEach(() => {
-      registerChatTools(mockServer, mockGraphService);
+      registerChatTools(mockServer, mockGraphService, false);
       const call = vi
         .mocked(mockServer.tool)
         .mock.calls.find(([name]) => name === "update_chat_message");
@@ -915,7 +933,7 @@ describe("Chat Tools", () => {
     let deleteChatMessageHandler: (args?: any) => Promise<any>;
 
     beforeEach(() => {
-      registerChatTools(mockServer, mockGraphService);
+      registerChatTools(mockServer, mockGraphService, false);
       const call = vi
         .mocked(mockServer.tool)
         .mock.calls.find(([name]) => name === "delete_chat_message");
@@ -979,7 +997,7 @@ describe("Chat Tools", () => {
     let createChatHandler: (args?: any) => Promise<any>;
 
     beforeEach(() => {
-      registerChatTools(mockServer, mockGraphService);
+      registerChatTools(mockServer, mockGraphService, false);
       const call = vi.mocked(mockServer.tool).mock.calls.find(([name]) => name === "create_chat");
       createChatHandler = call?.[3] as unknown as (args?: any) => Promise<any>;
     });
@@ -1135,7 +1153,7 @@ describe("Chat Tools", () => {
     let sendFileToChatHandler: (args?: any) => Promise<any>;
 
     beforeEach(async () => {
-      registerChatTools(mockServer, mockGraphService);
+      registerChatTools(mockServer, mockGraphService, false);
       const call = vi
         .mocked(mockServer.tool)
         .mock.calls.find(([name]) => name === "send_file_to_chat");

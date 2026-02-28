@@ -5,15 +5,22 @@ import { cachePlugin } from "../msal-cache.js";
 const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
 const AUTHORITY = "https://login.microsoftonline.com/common";
 
-const DELEGATED_SCOPES = [
+/** Scopes sufficient for read-only operations (no message sending, no file uploads). */
+export const READ_ONLY_SCOPES = [
   "User.Read",
   "User.ReadBasic.All",
   "Team.ReadBasic.All",
   "Channel.ReadBasic.All",
   "ChannelMessage.Read.All",
-  "ChannelMessage.Send",
   "TeamMember.Read.All",
-  "Chat.ReadBasic",
+  "Chat.Read",
+];
+
+/** Full scopes including write operations. */
+export const FULL_SCOPES = [
+  ...READ_ONLY_SCOPES,
+  "ChannelMessage.Send",
+  "ChannelMessage.ReadWrite",
   "Chat.ReadWrite",
   "Files.ReadWrite.All",
 ];
@@ -32,12 +39,27 @@ export class GraphService {
   private tokenExpiresAt: Date | undefined;
   private msalApp: PublicClientApplication | undefined;
   private msalAccount: AccountInfo | undefined;
+  private _readOnlyMode = false;
 
   static getInstance(): GraphService {
     if (!GraphService.instance) {
       GraphService.instance = new GraphService();
     }
     return GraphService.instance;
+  }
+
+  /** Whether the service operates in read-only mode (reduced permission scopes). */
+  get readOnlyMode(): boolean {
+    return this._readOnlyMode;
+  }
+
+  set readOnlyMode(value: boolean) {
+    this._readOnlyMode = value;
+  }
+
+  /** Returns the scopes to request based on the current mode. */
+  get scopes(): string[] {
+    return this._readOnlyMode ? READ_ONLY_SCOPES : FULL_SCOPES;
   }
 
   private async initializeClient(): Promise<void> {
@@ -79,7 +101,7 @@ export class GraphService {
 
       // Verify we can acquire a token
       const result = await this.msalApp.acquireTokenSilent({
-        scopes: DELEGATED_SCOPES,
+        scopes: this.scopes,
         account: this.msalAccount,
       });
 
@@ -108,7 +130,7 @@ export class GraphService {
     }
 
     const result = await this.msalApp.acquireTokenSilent({
-      scopes: DELEGATED_SCOPES,
+      scopes: this.scopes,
       account: this.msalAccount,
     });
 

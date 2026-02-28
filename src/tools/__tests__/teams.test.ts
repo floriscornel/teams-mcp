@@ -46,9 +46,39 @@ describe("Teams Tools", () => {
     vi.clearAllMocks();
   });
 
+  describe("read-only mode", () => {
+    it("should register only read-only tools when readOnly is true", () => {
+      registerTeamsTools(mockServer, mockGraphService, true);
+
+      const registeredTools = mockServer.getAllTools();
+      expect(registeredTools).toContain("list_teams");
+      expect(registeredTools).toContain("list_channels");
+      expect(registeredTools).toContain("get_channel_messages");
+      expect(registeredTools).toContain("get_channel_message_replies");
+      expect(registeredTools).toContain("list_team_members");
+      expect(registeredTools).toContain("search_users_for_mentions");
+      expect(registeredTools).toContain("download_message_hosted_content");
+      expect(registeredTools).toHaveLength(7);
+
+      // Write tools should NOT be registered
+      expect(registeredTools).not.toContain("send_channel_message");
+      expect(registeredTools).not.toContain("reply_to_channel_message");
+      expect(registeredTools).not.toContain("delete_channel_message");
+      expect(registeredTools).not.toContain("update_channel_message");
+      expect(registeredTools).not.toContain("send_file_to_channel");
+    });
+
+    it("should register all 12 tools when readOnly is false", () => {
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const registeredTools = mockServer.getAllTools();
+      expect(registeredTools).toHaveLength(12);
+    });
+  });
+
   describe("list_teams tool", () => {
     it("should register list_teams tool correctly", () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       expect(mockServer.tool).toHaveBeenCalledWith(
         "list_teams",
@@ -64,7 +94,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(teamsResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_teams");
       const result = await tool.handler();
@@ -97,7 +127,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(emptyResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_teams");
       const result = await tool.handler();
@@ -114,7 +144,7 @@ describe("Teams Tools", () => {
 
     it("should handle API errors", async () => {
       mockClient.api().get.mockRejectedValue(new Error("Teams API error"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_teams");
       const result = await tool.handler();
@@ -132,7 +162,7 @@ describe("Teams Tools", () => {
 
   describe("list_channels tool", () => {
     it("should register list_channels tool with correct schema", () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_channels");
       expect(tool).toBeDefined();
@@ -145,7 +175,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(channelsResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_channels");
       const result = await tool.handler({ teamId: "test-team-id" });
@@ -174,7 +204,7 @@ describe("Teams Tools", () => {
 
     it("should handle empty channels list", async () => {
       mockClient.api().get.mockResolvedValue({ value: [] });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_channels");
       const result = await tool.handler({ teamId: "test-team-id" });
@@ -185,7 +215,7 @@ describe("Teams Tools", () => {
 
   describe("get_channel_messages tool", () => {
     it("should register get_channel_messages tool with correct schema", () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_messages");
       expect(tool).toBeDefined();
@@ -200,7 +230,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(messagesResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_messages");
       const result = await tool.handler({
@@ -245,7 +275,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(messagesResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_messages");
       await tool.handler({
@@ -261,7 +291,7 @@ describe("Teams Tools", () => {
 
     it("should handle empty messages", async () => {
       mockClient.api().get.mockResolvedValue({ value: [] });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_messages");
       const result = await tool.handler({
@@ -282,7 +312,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(messagesResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_messages");
       const result = await tool.handler({
@@ -299,7 +329,7 @@ describe("Teams Tools", () => {
 
   describe("send_channel_message tool", () => {
     it("should register send_channel_message tool with correct schema", () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       expect(tool).toBeDefined();
@@ -312,7 +342,7 @@ describe("Teams Tools", () => {
     it("should send message with markdown format", async () => {
       const sentMessage = { ...mockChatMessage, id: "markdown-message-id" };
       mockClient.api().post.mockResolvedValue(sentMessage);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       await tool.handler({
@@ -334,7 +364,7 @@ describe("Teams Tools", () => {
     it("should send message with text format (default)", async () => {
       const sentMessage = { ...mockChatMessage, id: "text-message-id" };
       mockClient.api().post.mockResolvedValue(sentMessage);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       await tool.handler({
@@ -355,7 +385,7 @@ describe("Teams Tools", () => {
     it("should send message with custom importance", async () => {
       const sentMessage = { ...mockChatMessage, id: "new-message-id" };
       mockClient.api().post.mockResolvedValue(sentMessage);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       await tool.handler({
@@ -376,7 +406,7 @@ describe("Teams Tools", () => {
 
     it("should handle send message errors", async () => {
       mockClient.api().post.mockRejectedValue(new Error("Send failed"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       const result = await tool.handler({
@@ -400,7 +430,7 @@ describe("Teams Tools", () => {
         select: vi.fn().mockReturnThis(),
       });
 
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       const result = await tool.handler({
@@ -428,7 +458,7 @@ describe("Teams Tools", () => {
         // Intentionally empty to suppress console output during tests
       });
 
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       const result = await tool.handler({
@@ -463,7 +493,7 @@ describe("Teams Tools", () => {
         headers: new Map([["content-type", "image/png"]]),
       });
 
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       const result = await tool.handler({
@@ -483,7 +513,7 @@ describe("Teams Tools", () => {
         status: 404,
       });
 
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       const result = await tool.handler({
@@ -508,7 +538,7 @@ describe("Teams Tools", () => {
         header: vi.fn().mockReturnThis(),
       });
 
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       const result = await tool.handler({
@@ -526,7 +556,7 @@ describe("Teams Tools", () => {
     });
 
     it("should reject unsupported image types", async () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       const result = await tool.handler({
@@ -545,7 +575,7 @@ describe("Teams Tools", () => {
     it("should send reply with markdown format", async () => {
       const sentReply = { ...mockChatMessage, id: "markdown-reply-id" };
       mockClient.api().post.mockResolvedValue(sentReply);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       await tool.handler({
@@ -568,7 +598,7 @@ describe("Teams Tools", () => {
 
   describe("get_channel_message_replies tool", () => {
     it("should register get_channel_message_replies tool with correct schema", () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_message_replies");
       expect(tool).toBeDefined();
@@ -584,7 +614,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(repliesResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_message_replies");
       const result = await tool.handler({
@@ -606,7 +636,7 @@ describe("Teams Tools", () => {
 
     it("should handle no replies found", async () => {
       mockClient.api().get.mockResolvedValue({ value: [] });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_message_replies");
       const result = await tool.handler({
@@ -620,7 +650,7 @@ describe("Teams Tools", () => {
 
     it("should handle get replies errors", async () => {
       mockClient.api().get.mockRejectedValue(new Error("Message not found"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_message_replies");
       const result = await tool.handler({
@@ -635,7 +665,7 @@ describe("Teams Tools", () => {
 
   describe("reply_to_channel_message tool", () => {
     it("should register reply_to_channel_message tool with correct schema", () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       expect(tool).toBeDefined();
@@ -648,7 +678,7 @@ describe("Teams Tools", () => {
 
     it("should reply to a message with default importance", async () => {
       mockClient.api().post.mockResolvedValue({ id: "reply-123" });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       const result = await tool.handler({
@@ -673,7 +703,7 @@ describe("Teams Tools", () => {
 
     it("should reply to a message with custom importance", async () => {
       mockClient.api().post.mockResolvedValue({ id: "reply-456" });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       const _result = await tool.handler({
@@ -695,7 +725,7 @@ describe("Teams Tools", () => {
 
     it("should handle reply errors", async () => {
       mockClient.api().post.mockRejectedValue(new Error("Reply failed"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       const result = await tool.handler({
@@ -710,7 +740,7 @@ describe("Teams Tools", () => {
 
     it("should reply with markdown format", async () => {
       mockClient.api().post.mockResolvedValue({ id: "reply-md" });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       await tool.handler({
@@ -733,7 +763,7 @@ describe("Teams Tools", () => {
     it("should reply with text format (default)", async () => {
       const sentReply = { ...mockChatMessage, id: "text-reply-id" };
       mockClient.api().post.mockResolvedValue(sentReply);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       await tool.handler({
@@ -754,7 +784,7 @@ describe("Teams Tools", () => {
 
     it("should fallback to text for invalid format in reply", async () => {
       mockClient.api().post.mockResolvedValue({ id: "reply-fallback" });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       await tool.handler({
@@ -785,7 +815,7 @@ describe("Teams Tools", () => {
         select: vi.fn().mockReturnThis(),
       });
 
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       const result = await tool.handler({
@@ -816,7 +846,7 @@ describe("Teams Tools", () => {
         headers: new Map([["content-type", "image/jpeg"]]),
       });
 
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       const result = await tool.handler({
@@ -837,7 +867,7 @@ describe("Teams Tools", () => {
         status: 500,
       });
 
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("reply_to_channel_message");
       const result = await tool.handler({
@@ -862,7 +892,7 @@ describe("Teams Tools", () => {
         post: vi.fn(),
       };
       mockClient.api = vi.fn().mockReturnValue(mockApiChain);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("update_channel_message");
       const result = await tool.handler({
@@ -893,7 +923,7 @@ describe("Teams Tools", () => {
         post: vi.fn(),
       };
       mockClient.api = vi.fn().mockReturnValue(mockApiChain);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("update_channel_message");
       await tool.handler({
@@ -920,7 +950,7 @@ describe("Teams Tools", () => {
         post: vi.fn(),
       };
       mockClient.api = vi.fn().mockReturnValue(mockApiChain);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("update_channel_message");
       const result = await tool.handler({
@@ -956,7 +986,7 @@ describe("Teams Tools", () => {
         }
         return mockPatchChain;
       });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("update_channel_message");
       const result = await tool.handler({
@@ -985,7 +1015,7 @@ describe("Teams Tools", () => {
         post: vi.fn(),
       };
       mockClient.api = vi.fn().mockReturnValue(mockApiChain);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("update_channel_message");
       const result = await tool.handler({
@@ -1007,7 +1037,7 @@ describe("Teams Tools", () => {
         get: vi.fn(),
       };
       mockClient.api = vi.fn().mockReturnValue(mockApiChain);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("delete_channel_message");
       const result = await tool.handler({
@@ -1029,7 +1059,7 @@ describe("Teams Tools", () => {
         get: vi.fn(),
       };
       mockClient.api = vi.fn().mockReturnValue(mockApiChain);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("delete_channel_message");
       const result = await tool.handler({
@@ -1052,7 +1082,7 @@ describe("Teams Tools", () => {
         get: vi.fn(),
       };
       mockClient.api = vi.fn().mockReturnValue(mockApiChain);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("delete_channel_message");
       const result = await tool.handler({
@@ -1068,7 +1098,7 @@ describe("Teams Tools", () => {
 
   describe("list_team_members tool", () => {
     it("should register list_team_members tool with correct schema", () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_team_members");
       expect(tool).toBeDefined();
@@ -1081,7 +1111,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(membersResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_team_members");
       const result = await tool.handler({ teamId: "test-team-id" });
@@ -1109,7 +1139,7 @@ describe("Teams Tools", () => {
 
     it("should handle empty members list", async () => {
       mockClient.api().get.mockResolvedValue({ value: [] });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_team_members");
       const result = await tool.handler({ teamId: "test-team-id" });
@@ -1119,7 +1149,7 @@ describe("Teams Tools", () => {
 
     it("should handle list members errors", async () => {
       mockClient.api().get.mockRejectedValue(new Error("Team not found"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_team_members");
       const result = await tool.handler({ teamId: "invalid-team-id" });
@@ -1132,7 +1162,7 @@ describe("Teams Tools", () => {
     it("should handle authentication errors in all tools", async () => {
       const authError = new Error("Not authenticated");
       mockGraphService.getClient.mockRejectedValue(authError);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const testCases = [
         { tool: "list_teams", params: {}, expectedError: "❌ Error: Not authenticated" },
@@ -1167,7 +1197,7 @@ describe("Teams Tools", () => {
 
     it("should handle unknown errors", async () => {
       mockClient.api().get.mockRejectedValue("String error");
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_teams");
       const result = await tool.handler();
@@ -1179,7 +1209,7 @@ describe("Teams Tools", () => {
   describe("input validation", () => {
     it("should handle invalid team IDs", async () => {
       mockClient.api().get.mockRejectedValue(new Error("Team not found"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("list_channels");
       const result = await tool.handler({ teamId: "invalid-team-id" });
@@ -1189,7 +1219,7 @@ describe("Teams Tools", () => {
 
     it("should handle invalid channel IDs", async () => {
       mockClient.api().get.mockRejectedValue(new Error("Channel not found"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_messages");
       const result = await tool.handler({
@@ -1201,7 +1231,7 @@ describe("Teams Tools", () => {
     });
 
     it("should handle empty message content", async () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_channel_message");
       const _result = await tool.handler({
@@ -1228,7 +1258,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(messagesResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_messages");
       const result = await tool.handler({
@@ -1247,7 +1277,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(messagesResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_channel_messages");
       const result = await tool.handler({
@@ -1262,7 +1292,7 @@ describe("Teams Tools", () => {
 
   describe("search_users_for_mentions tool", () => {
     it("should register search_users_for_mentions tool with correct schema", () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users_for_mentions");
       expect(tool).toBeDefined();
@@ -1287,7 +1317,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(usersResponse);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users_for_mentions");
       const result = await tool.handler({ query: "john" });
@@ -1300,7 +1330,7 @@ describe("Teams Tools", () => {
 
     it("should handle no users found", async () => {
       mockClient.api().get.mockResolvedValue({ value: [] });
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users_for_mentions");
       const result = await tool.handler({ query: "nonexistent" });
@@ -1310,7 +1340,7 @@ describe("Teams Tools", () => {
 
     it("should handle search errors gracefully", async () => {
       mockClient.api().get.mockRejectedValue(new Error("Search failed"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users_for_mentions");
       const result = await tool.handler({ query: "test" });
@@ -1322,7 +1352,7 @@ describe("Teams Tools", () => {
 
   describe("download_message_hosted_content tool", () => {
     it("should register download_message_hosted_content tool with correct schema", () => {
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("download_message_hosted_content");
       expect(tool).toBeDefined();
@@ -1333,7 +1363,7 @@ describe("Teams Tools", () => {
 
     it("should handle message not found", async () => {
       mockClient.api().get.mockResolvedValue(null);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("download_message_hosted_content");
       const result = await tool.handler({
@@ -1353,7 +1383,7 @@ describe("Teams Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(message);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("download_message_hosted_content");
       const result = await tool.handler({
@@ -1382,7 +1412,7 @@ describe("Teams Tools", () => {
 
       const sentMessage = { ...mockChatMessage, id: "filemsg-channel-1" };
       mockClient.api().post.mockResolvedValue(sentMessage);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_file_to_channel");
       const result = await tool.handler({
@@ -1428,7 +1458,7 @@ describe("Teams Tools", () => {
 
       const sentMessage = { ...mockChatMessage, id: "filemsg-channel-2" };
       mockClient.api().post.mockResolvedValue(sentMessage);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_file_to_channel");
       const result = await tool.handler({
@@ -1460,7 +1490,7 @@ describe("Teams Tools", () => {
 
       const sentMessage = { ...mockChatMessage, id: "filemsg-channel-3" };
       mockClient.api().post.mockResolvedValue(sentMessage);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_file_to_channel");
       const result = await tool.handler({
@@ -1482,7 +1512,7 @@ describe("Teams Tools", () => {
       const { uploadFileToChannel } = await import("../../utils/file-upload.js");
 
       vi.mocked(uploadFileToChannel).mockRejectedValue(new Error("File not found"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_file_to_channel");
       const result = await tool.handler({
@@ -1508,7 +1538,7 @@ describe("Teams Tools", () => {
       vi.mocked(uploadFileToChannel).mockResolvedValue(mockUploadResult);
 
       mockClient.api().post.mockRejectedValue(new Error("Forbidden"));
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_file_to_channel");
       const result = await tool.handler({
@@ -1535,7 +1565,7 @@ describe("Teams Tools", () => {
 
       const sentMessage = { ...mockChatMessage, id: "filemsg-reply-1" };
       mockClient.api().post.mockResolvedValue(sentMessage);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_file_to_channel");
       const result = await tool.handler({
@@ -1571,7 +1601,7 @@ describe("Teams Tools", () => {
 
       const sentMessage = { ...mockChatMessage, id: "filemsg-new-1" };
       mockClient.api().post.mockResolvedValue(sentMessage);
-      registerTeamsTools(mockServer, mockGraphService);
+      registerTeamsTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("send_file_to_channel");
       const result = await tool.handler({

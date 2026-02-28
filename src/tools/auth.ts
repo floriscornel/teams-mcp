@@ -1,7 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GraphService } from "../services/graph.js";
 
-export function registerAuthTools(server: McpServer, graphService: GraphService) {
+export function registerAuthTools(
+  server: McpServer,
+  graphService: GraphService,
+  _readOnly: boolean
+) {
   // Authentication status tool
   server.tool(
     "auth_status",
