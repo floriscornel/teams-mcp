@@ -28,6 +28,7 @@ import { processMentionsInHtml } from "../utils/users.js";
  *
  * @param server - The MCP server instance to register tools on.
  * @param graphService - The Microsoft Graph service used for API calls.
+ * @param readOnly - When true, skips registration of write tools (send, create, update, delete, file upload).
  */
 export function registerChatTools(
   server: McpServer,

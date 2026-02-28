@@ -88,8 +88,8 @@ async function authenticate(readOnly: boolean) {
 
       console.log("\n✅ Authentication successful!");
       console.log(`👤 Signed in as: ${result.account?.username || "Unknown"}`);
-      console.log(`� Mode: ${modeLabel}`);
-      console.log(`�💾 Credentials saved to: ${AUTH_INFO_PATH}`);
+      console.log(`🔒 Mode: ${modeLabel}`);
+      console.log(`💾 Credentials saved to: ${AUTH_INFO_PATH}`);
       console.log("🔄 Refresh token cached for automatic renewal");
       console.log("\n🚀 You can now use the MCP server in Cursor!");
       console.log("   The server will automatically use these credentials.");
