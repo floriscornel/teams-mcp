@@ -15,6 +15,7 @@ const DELEGATED_SCOPES = [
   "TeamMember.Read.All",
   "Chat.ReadBasic",
   "Chat.ReadWrite",
+  "Files.ReadWrite.All",
 ];
 
 export interface AuthStatus {

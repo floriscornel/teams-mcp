@@ -2,7 +2,17 @@ import type { Client } from "@microsoft/microsoft-graph-client";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphService } from "../../services/graph.js";
+import type { FileUploadResult } from "../../utils/file-upload.js";
 import { registerChatTools } from "../chats.js";
+
+// Mock file-upload module
+vi.mock("../../utils/file-upload.js", async () => {
+  const actual = (await vi.importActual("../../utils/file-upload.js")) as any;
+  return {
+    ...actual,
+    uploadFileToChat: vi.fn(),
+  };
+});
 
 // Mock the Graph service
 const mockGraphService = {
@@ -29,7 +39,7 @@ describe("Chat Tools", () => {
     it("should register all chat tools", () => {
       registerChatTools(mockServer, mockGraphService);
 
-      expect(mockServer.tool).toHaveBeenCalledTimes(6);
+      expect(mockServer.tool).toHaveBeenCalledTimes(7);
       expect(mockServer.tool).toHaveBeenCalledWith(
         "list_chats",
         expect.any(String),
@@ -62,6 +72,12 @@ describe("Chat Tools", () => {
       );
       expect(mockServer.tool).toHaveBeenCalledWith(
         "delete_chat_message",
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(mockServer.tool).toHaveBeenCalledWith(
+        "send_file_to_chat",
         expect.any(String),
         expect.any(Object),
         expect.any(Function)
@@ -1112,6 +1128,165 @@ describe("Chat Tools", () => {
       });
 
       expect(result.content[0].text).toBe("❌ Error: Failed to create chat");
+    });
+  });
+
+  describe("send_file_to_chat", () => {
+    let sendFileToChatHandler: (args?: any) => Promise<any>;
+
+    beforeEach(async () => {
+      registerChatTools(mockServer, mockGraphService);
+      const call = vi
+        .mocked(mockServer.tool)
+        .mock.calls.find(([name]) => name === "send_file_to_chat");
+      sendFileToChatHandler = call?.[3] as unknown as (args: any) => Promise<any>;
+    });
+
+    it("should upload file and send message successfully", async () => {
+      const { uploadFileToChat } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://onedrive.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 2048,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChat).mockResolvedValue(mockUploadResult);
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue({ id: "filemsg123" }),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await sendFileToChatHandler({
+        chatId: "chat123",
+        filePath: "/tmp/report.pdf",
+      });
+
+      expect(result.content[0].text).toContain("✅ File sent successfully to chat.");
+      expect(result.content[0].text).toContain("report.pdf");
+      expect(result.content[0].text).toContain("Message ID: filemsg123");
+
+      // Verify message payload has HTML body with attachment tag
+      expect(mockApiChain.post).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            content: expect.stringContaining('<attachment id="AAAA-BBBB-CCCC"></attachment>'),
+            contentType: "html",
+          }),
+          attachments: [
+            {
+              id: "AAAA-BBBB-CCCC",
+              contentType: "reference",
+              contentUrl: "https://onedrive.com/file.pdf",
+              name: "report.pdf",
+            },
+          ],
+        })
+      );
+    });
+
+    it("should include optional message text with HTML escaping", async () => {
+      const { uploadFileToChat } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://onedrive.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 1024,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChat).mockResolvedValue(mockUploadResult);
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue({ id: "filemsg456" }),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await sendFileToChatHandler({
+        chatId: "chat123",
+        filePath: "/tmp/report.pdf",
+        message: "Check <this> file & report",
+      });
+
+      expect(result.content[0].text).toContain("✅ File sent successfully to chat.");
+
+      // Plain text should be HTML-escaped in the body
+      const postPayload = mockApiChain.post.mock.calls[0][0];
+      expect(postPayload.body.content).toContain("Check &lt;this&gt; file &amp; report");
+      expect(postPayload.body.content).toContain('<attachment id="AAAA-BBBB-CCCC"></attachment>');
+    });
+
+    it("should handle markdown format for message", async () => {
+      const { uploadFileToChat } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://onedrive.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 1024,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChat).mockResolvedValue(mockUploadResult);
+
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue({ id: "filemsg789" }),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await sendFileToChatHandler({
+        chatId: "chat123",
+        filePath: "/tmp/report.pdf",
+        message: "**Bold** report",
+        format: "markdown",
+      });
+
+      expect(result.content[0].text).toContain("✅ File sent successfully to chat.");
+
+      const postPayload = mockApiChain.post.mock.calls[0][0];
+      expect(postPayload.body.content).toContain("<strong>Bold</strong>");
+      expect(postPayload.body.contentType).toBe("html");
+    });
+
+    it("should handle upload errors", async () => {
+      const { uploadFileToChat } = await import("../../utils/file-upload.js");
+
+      vi.mocked(uploadFileToChat).mockRejectedValue(new Error("File not found"));
+
+      const result = await sendFileToChatHandler({
+        chatId: "chat123",
+        filePath: "/tmp/nonexistent.pdf",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to send file: File not found");
+      expect(result.isError).toBe(true);
+    });
+
+    it("should handle message send errors after successful upload", async () => {
+      const { uploadFileToChat } = await import("../../utils/file-upload.js");
+
+      const mockUploadResult: FileUploadResult = {
+        webUrl: "https://onedrive.com/file.pdf",
+        attachmentId: "AAAA-BBBB-CCCC",
+        fileName: "report.pdf",
+        fileSize: 1024,
+        mimeType: "application/pdf",
+      };
+      vi.mocked(uploadFileToChat).mockResolvedValue(mockUploadResult);
+
+      const mockApiChain = {
+        post: vi.fn().mockRejectedValue(new Error("Permission denied")),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await sendFileToChatHandler({
+        chatId: "chat123",
+        filePath: "/tmp/report.pdf",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to send file: Permission denied");
+      expect(result.isError).toBe(true);
     });
   });
 });

@@ -11,6 +11,12 @@ import type {
   MessageSummary,
   User,
 } from "../types/graph.js";
+import {
+  buildFileAttachment,
+  escapeHtml,
+  formatFileSize,
+  uploadFileToChat,
+} from "../utils/file-upload.js";
 import { formatMessageContent } from "../utils/html-to-markdown.js";
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml } from "../utils/users.js";
@@ -659,6 +665,74 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
             {
               type: "text" as const,
               text: `❌ Failed to delete message: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Send a file to a chat
+  server.tool(
+    "send_file_to_chat",
+    "Upload a local file and send it as a message to a Teams chat. Supports any file type (PDF, DOCX, ZIP, images, etc.). The file is uploaded to OneDrive and sent as a reference attachment.",
+    {
+      chatId: z.string().describe("Chat ID"),
+      filePath: z.string().describe("Absolute path to the local file to upload"),
+      message: z.string().optional().describe("Optional message text to accompany the file"),
+      fileName: z
+        .string()
+        .optional()
+        .describe("Optional custom filename (defaults to the original file name)"),
+      format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
+      importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+    },
+    async ({ chatId, filePath, message, fileName, format = "text", importance = "normal" }) => {
+      try {
+        const client = await graphService.getClient();
+
+        const uploadResult = await uploadFileToChat(graphService, filePath, fileName);
+
+        // Build message content — must be HTML with attachment reference tag
+        let content = "";
+        if (message) {
+          if (format === "markdown") {
+            content = await markdownToHtml(message);
+          } else {
+            content = escapeHtml(message);
+          }
+        }
+
+        const attachmentTag = `<attachment id="${uploadResult.attachmentId}"></attachment>`;
+        content = content ? `${content}<br>${attachmentTag}` : attachmentTag;
+
+        const attachments = buildFileAttachment(uploadResult);
+        const messagePayload: any = {
+          body: { content, contentType: "html" },
+          importance,
+          attachments,
+        };
+
+        const result = (await client
+          .api(`/me/chats/${chatId}/messages`)
+          .post(messagePayload)) as ChatMessage;
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `✅ File sent successfully to chat.\nFile: ${uploadResult.fileName} (${formatFileSize(uploadResult.fileSize)})\nMessage ID: ${result.id}`,
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `❌ Failed to send file: ${errorMessage}`,
             },
           ],
           isError: true,
