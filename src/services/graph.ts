@@ -13,13 +13,14 @@ export const READ_ONLY_SCOPES = [
   "Channel.ReadBasic.All",
   "ChannelMessage.Read.All",
   "TeamMember.Read.All",
-  "Chat.ReadBasic",
+  "Chat.Read",
 ];
 
 /** Full scopes including write operations. */
 export const FULL_SCOPES = [
   ...READ_ONLY_SCOPES,
   "ChannelMessage.Send",
+  "ChannelMessage.ReadWrite",
   "Chat.ReadWrite",
   "Files.ReadWrite.All",
 ];

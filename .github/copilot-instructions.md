@@ -50,6 +50,21 @@ npm run ci             # biome ci src/ (CI mode)
 - **Coverage**: v8 provider, 80% global threshold. `index.ts` and `test-utils/` are excluded from coverage.
 - **Auth in tests**: `GraphService` is a singleton — tests mock it via `vi.mock()` on `@azure/msal-node` and `@microsoft/microsoft-graph-client`, setting up `PublicClientApplication` / `Client.initWithMiddleware` stubs *before* importing the module under test. See `src/services/__tests__/graph.test.ts` for the pattern.
 
+## Microsoft Graph Documentation (microsoftdocs/mcp)
+
+The workspace has a `microsoftdocs/mcp` server configured (`.vscode/mcp.json`) that provides access to official Microsoft Learn documentation. Use it to look up Graph API endpoints, permissions, and SDK usage.
+
+**Workflow:**
+1. Use `microsoft_docs_search` to find relevant docs (returns up to 10 content chunks with title, URL, and excerpt).
+2. Use `microsoft_code_sample_search` to find code examples (returns up to 20 samples; optional `language` filter).
+3. Use `microsoft_docs_fetch` to retrieve the full content of a specific doc page when search results are insufficient.
+
+**When to use:**
+- Verifying Graph API endpoint paths, query parameters, or response shapes.
+- Checking required permissions/scopes for a Graph API call.
+- Looking up SDK patterns for `@microsoft/microsoft-graph-client`.
+- Resolving questions about Microsoft Teams-specific Graph API behavior (e.g., message types, mention formats, hosted content).
+
 ## Adding a New MCP Tool
 
 1. Add or extend a `register*Tools` function in `src/tools/`.

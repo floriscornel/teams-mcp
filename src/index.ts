@@ -125,7 +125,10 @@ async function checkAuth() {
       if (grantedScopes) {
         const hasWriteScopes = grantedScopes.some(
           (s: string) =>
-            s === "ChannelMessage.Send" || s === "Chat.ReadWrite" || s === "Files.ReadWrite.All"
+            s === "ChannelMessage.Send" ||
+            s === "ChannelMessage.ReadWrite" ||
+            s === "Chat.ReadWrite" ||
+            s === "Files.ReadWrite.All"
         );
         console.log(`🔒 Scope mode: ${hasWriteScopes ? "full access" : "read-only"}`);
       } else {
@@ -195,7 +198,10 @@ async function startMcpServer(readOnly: boolean) {
       const grantedScopes = authInfo.grantedScopes as string[] | undefined;
       const hasWriteScopes = grantedScopes?.some(
         (s: string) =>
-          s === "ChannelMessage.Send" || s === "Chat.ReadWrite" || s === "Files.ReadWrite.All"
+          s === "ChannelMessage.Send" ||
+          s === "ChannelMessage.ReadWrite" ||
+          s === "Chat.ReadWrite" ||
+          s === "Files.ReadWrite.All"
       );
       if (grantedScopes && !hasWriteScopes) {
         console.error(

@@ -224,9 +224,10 @@ npm run auth
 - `Team.ReadBasic.All` - Read team information
 - `Channel.ReadBasic.All` - Read channel information
 - `ChannelMessage.Read.All` - Read channel messages
-- `ChannelMessage.Send` - Send channel messages
-- `Chat.ReadBasic` - Read chat metadata
-- `Chat.ReadWrite` - Create and manage chats (including edit/delete messages)
+- `ChannelMessage.Send` - Send channel messages and replies
+- `ChannelMessage.ReadWrite` - Edit and delete channel messages
+- `Chat.Read` - Read chat messages (included via read-only scopes)
+- `Chat.ReadWrite` - Create and manage chats, send/edit/delete chat messages (supersedes `Chat.Read`)
 - `TeamMember.Read.All` - Read team members
 - `Files.ReadWrite.All` - Required for file uploads to channels and chats
 
@@ -237,7 +238,7 @@ npm run auth
 - `Channel.ReadBasic.All`
 - `ChannelMessage.Read.All`
 - `TeamMember.Read.All`
-- `Chat.ReadBasic`
+- `Chat.Read`
 
 ## 🛠️ Usage
 
@@ -295,8 +296,7 @@ npx @floriscornel/teams-mcp@latest authenticate
 ### Available MCP Tools
 
 #### Authentication
-- `authenticate` - Initiate OAuth authentication flow
-- `logout` - Clear authentication tokens
+- `auth_status` - Check current authentication status
 - `get_current_user` - Get authenticated user information
 
 #### User Operations
@@ -307,10 +307,13 @@ npx @floriscornel/teams-mcp@latest authenticate
 - `list_teams` - List user's joined teams
 - `list_channels` - List channels in a specific team
 - `get_channel_messages` - Retrieve messages from a team channel with pagination and filtering
+- `get_channel_message_replies` - Get replies to a specific channel message
 - `send_channel_message` - Send a message to a team channel
+- `reply_to_channel_message` - Reply to an existing channel message
 - `update_channel_message` - Edit a previously sent channel message
 - `delete_channel_message` - Soft delete a channel message (supports replies)
 - `list_team_members` - List members of a specific team
+- `search_users_for_mentions` - Search for team members to @mention in messages
 - `send_file_to_channel` - Upload a local file and send it as a message to a channel
 
 #### Chat Operations
@@ -327,7 +330,6 @@ npx @floriscornel/teams-mcp@latest authenticate
 
 #### Search Operations
 - `search_messages` - Search across all Teams messages using KQL syntax
-- `get_recent_messages` - Get recent messages with advanced filtering options
 - `get_my_mentions` - Find messages mentioning the current user
 
 ## 📋 Examples
