@@ -18,9 +18,20 @@ import {
   isValidImageType,
   uploadImageAsHostedContent,
 } from "../utils/attachments.js";
+import { formatMessageContent } from "../utils/html-to-markdown.js";
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml, searchUsers, type UserInfo } from "../utils/users.js";
 
+/**
+ * Registers all Teams-related MCP tools on the given server.
+ * Tools include: list_teams, list_channels, get_channel_messages,
+ * send_channel_message, get_channel_message_replies, reply_to_channel_message,
+ * list_team_members, search_users_for_mentions, download_message_hosted_content,
+ * delete_channel_message, and update_channel_message.
+ *
+ * @param server - The MCP server instance to register tools on.
+ * @param graphService - The Microsoft Graph service used for API calls.
+ */
 export function registerTeamsTools(server: McpServer, graphService: GraphService, readOnly = false) {
   // List user's teams
   server.tool(
@@ -140,8 +151,15 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
         .optional()
         .default(20)
         .describe("Number of messages to retrieve (default: 20)"),
+      contentFormat: z
+        .enum(["raw", "markdown"])
+        .optional()
+        .default("markdown")
+        .describe(
+          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+        ),
     },
-    async ({ teamId, channelId, limit }) => {
+    async ({ teamId, channelId, limit, contentFormat }) => {
       try {
         const client = await graphService.getClient();
 
@@ -165,9 +183,10 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
           };
         }
 
+        const effectiveContentFormat = contentFormat ?? "markdown";
         const messageList: MessageSummary[] = response.value.map((message: ChatMessage) => ({
           id: message.id,
-          content: message.body?.content,
+          content: formatMessageContent(message.body?.content, effectiveContentFormat),
           from: message.from?.user?.displayName,
           createdDateTime: message.createdDateTime,
           importance: message.importance,
@@ -437,8 +456,15 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
         .optional()
         .default(20)
         .describe("Number of replies to retrieve (default: 20)"),
+      contentFormat: z
+        .enum(["raw", "markdown"])
+        .optional()
+        .default("markdown")
+        .describe(
+          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+        ),
     },
-    async ({ teamId, channelId, messageId, limit }) => {
+    async ({ teamId, channelId, messageId, limit, contentFormat }) => {
       try {
         const client = await graphService.getClient();
 
@@ -463,9 +489,10 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
           };
         }
 
+        const effectiveContentFormat = contentFormat ?? "markdown";
         const repliesList: MessageSummary[] = response.value.map((reply: ChatMessage) => ({
           id: reply.id,
-          content: reply.body?.content,
+          content: formatMessageContent(reply.body?.content, effectiveContentFormat),
           from: reply.from?.user?.displayName,
           createdDateTime: reply.createdDateTime,
           importance: reply.importance,
@@ -1039,6 +1066,199 @@ export function registerTeamsTools(server: McpServer, graphService: GraphService
               text: `❌ Error: ${errorMessage}`,
             },
           ],
+        };
+      }
+    }
+  );
+
+  // Soft delete a channel message
+  server.tool(
+    "delete_channel_message",
+    "Soft delete a message in a channel. Only the message sender can delete their own messages. The message will be marked as deleted.",
+    {
+      teamId: z.string().describe("Team ID"),
+      channelId: z.string().describe("Channel ID"),
+      messageId: z.string().describe("Message ID to delete"),
+      replyId: z
+        .string()
+        .optional()
+        .describe("Reply ID if deleting a reply to a message (optional)"),
+    },
+    async ({ teamId, channelId, messageId, replyId }) => {
+      try {
+        const client = await graphService.getClient();
+
+        // Build endpoint based on whether it's a reply or main message
+        // POST /teams/{teamId}/channels/{channelId}/messages/{chatMessageId}/softDelete
+        // POST /teams/{teamId}/channels/{channelId}/messages/{messageId}/replies/{replyId}/softDelete
+        const endpoint = replyId
+          ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}/softDelete`
+          : `/teams/${teamId}/channels/${channelId}/messages/${messageId}/softDelete`;
+
+        // Soft delete the message using POST
+        await client.api(endpoint).post({});
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `✅ ${replyId ? "Reply" : "Message"} deleted successfully.${replyId ? ` Reply ID: ${replyId}` : ` Message ID: ${messageId}`}`,
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `❌ Failed to delete ${replyId ? "reply" : "message"}: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Update/Edit a channel message
+  server.tool(
+    "update_channel_message",
+    "Update (edit) a message in a channel that was previously sent. Only the message sender can update their own messages.",
+    {
+      teamId: z.string().describe("Team ID"),
+      channelId: z.string().describe("Channel ID"),
+      messageId: z.string().describe("Message ID to update"),
+      replyId: z
+        .string()
+        .optional()
+        .describe("Reply ID if updating a reply to a message (optional)"),
+      message: z.string().describe("New message content"),
+      importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+      format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
+      mentions: z
+        .array(
+          z.object({
+            mention: z
+              .string()
+              .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
+            userId: z.string().describe("Azure AD User ID of the mentioned user"),
+          })
+        )
+        .optional()
+        .describe("Array of @mentions to include in the message"),
+    },
+    async ({
+      teamId,
+      channelId,
+      messageId,
+      replyId,
+      message,
+      importance,
+      format = "text",
+      mentions,
+    }) => {
+      try {
+        const client = await graphService.getClient();
+
+        // Process message content based on format
+        let content: string;
+        let contentType: "text" | "html";
+
+        if (format === "markdown") {
+          content = await markdownToHtml(message);
+          contentType = "html";
+        } else {
+          content = message;
+          contentType = "text";
+        }
+
+        // Process @mentions if provided
+        const mentionMappings: Array<{ mention: string; userId: string; displayName: string }> = [];
+        if (mentions && mentions.length > 0) {
+          for (const mention of mentions) {
+            try {
+              const userResponse = await client
+                .api(`/users/${mention.userId}`)
+                .select("displayName")
+                .get();
+              mentionMappings.push({
+                mention: mention.mention,
+                userId: mention.userId,
+                displayName: userResponse.displayName || mention.mention,
+              });
+            } catch (_error) {
+              console.warn(
+                `Could not resolve user ${mention.userId}, using mention text as display name`
+              );
+              mentionMappings.push({
+                mention: mention.mention,
+                userId: mention.userId,
+                displayName: mention.mention,
+              });
+            }
+          }
+        }
+
+        // Process mentions in HTML content
+        let finalMentions: Array<{
+          id: number;
+          mentionText: string;
+          mentioned: { user: { id: string } };
+        }> = [];
+        if (mentionMappings.length > 0) {
+          const result = processMentionsInHtml(content, mentionMappings);
+          content = result.content;
+          finalMentions = result.mentions;
+          contentType = "html";
+        }
+
+        // Build message payload for update
+        const messagePayload: any = {
+          body: {
+            content,
+            contentType,
+          },
+        };
+
+        if (importance) {
+          messagePayload.importance = importance;
+        }
+
+        if (finalMentions.length > 0) {
+          messagePayload.mentions = finalMentions;
+        }
+
+        // Update the message using PATCH
+        const endpoint = replyId
+          ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}`
+          : `/teams/${teamId}/channels/${channelId}/messages/${messageId}`;
+        await client.api(endpoint).patch(messagePayload);
+
+        const successText = `✅ Channel ${replyId ? "reply" : "message"} updated successfully.${replyId ? ` Reply ID: ${replyId}` : ` Message ID: ${messageId}`}${
+          finalMentions.length > 0
+            ? `\n📱 Mentions: ${finalMentions.map((m) => m.mentionText).join(", ")}`
+            : ""
+        }`;
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: successText,
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `❌ Failed to update channel message: ${errorMessage}`,
+            },
+          ],
+          isError: true,
         };
       }
     }

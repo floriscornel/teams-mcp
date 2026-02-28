@@ -184,7 +184,7 @@ async function startMcpServer() {
   // Create MCP server
   const server = new McpServer({
     name: "teams-mcp",
-    version: "0.5.0",
+    version: "0.7.0",
   });
 
   // Determine operating mode
