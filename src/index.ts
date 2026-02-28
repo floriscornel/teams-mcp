@@ -81,7 +81,7 @@ async function authenticate(readOnly: boolean) {
         timestamp: new Date().toISOString(),
         expiresAt: result.expiresOn?.toISOString(),
         account: result.account?.username,
-        grantedScopes: scopes,
+        grantedScopes: result.scopes,
       };
 
       await fs.writeFile(AUTH_INFO_PATH, JSON.stringify(authInfo, null, 2));
@@ -123,8 +123,11 @@ async function checkAuth() {
       // Show granted scope mode
       const grantedScopes = authInfo.grantedScopes as string[] | undefined;
       if (grantedScopes) {
-        const isReadOnly = grantedScopes.length === READ_ONLY_SCOPES.length;
-        console.log(`🔒 Scope mode: ${isReadOnly ? "read-only" : "full access"}`);
+        const hasWriteScopes = grantedScopes.some(
+          (s: string) =>
+            s === "ChannelMessage.Send" || s === "Chat.ReadWrite" || s === "Files.ReadWrite.All"
+        );
+        console.log(`🔒 Scope mode: ${hasWriteScopes ? "full access" : "read-only"}`);
       } else {
         console.log("⚠️  Scope mode: unknown (authenticated before read-only support)");
       }
@@ -190,7 +193,11 @@ async function startMcpServer(readOnly: boolean) {
     const authInfo = await readAuthInfo();
     if (authInfo) {
       const grantedScopes = authInfo.grantedScopes as string[] | undefined;
-      if (grantedScopes && grantedScopes.length === READ_ONLY_SCOPES.length) {
+      const hasWriteScopes = grantedScopes?.some(
+        (s: string) =>
+          s === "ChannelMessage.Send" || s === "Chat.ReadWrite" || s === "Files.ReadWrite.All"
+      );
+      if (grantedScopes && !hasWriteScopes) {
         console.error(
           "⚠️  Warning: You authenticated with read-only scopes but the server is running in full mode."
         );
@@ -221,7 +228,7 @@ async function startMcpServer(readOnly: boolean) {
 // Main function to handle both CLI and MCP server modes
 async function main() {
   const args = process.argv.slice(2);
-  const command = args[0];
+  const command = args.find((arg) => arg !== "--read-only");
 
   const readOnly = hasReadOnlyFlag(args) || process.env.TEAMS_MCP_READ_ONLY === "true";
 
