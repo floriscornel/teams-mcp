@@ -29,7 +29,11 @@ import { processMentionsInHtml } from "../utils/users.js";
  * @param server - The MCP server instance to register tools on.
  * @param graphService - The Microsoft Graph service used for API calls.
  */
-export function registerChatTools(server: McpServer, graphService: GraphService) {
+export function registerChatTools(
+  server: McpServer,
+  graphService: GraphService,
+  readOnly: boolean
+) {
   // List user's chats
   server.tool(
     "list_chats",
@@ -297,6 +301,9 @@ export function registerChatTools(server: McpServer, graphService: GraphService)
       }
     }
   );
+
+  // --- Write tools (skipped in read-only mode) ---
+  if (readOnly) return;
 
   // Send chat message
   server.tool(

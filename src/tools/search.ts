@@ -31,7 +31,11 @@ export function formatSearchHits(
   }));
 }
 
-export function registerSearchTools(server: McpServer, graphService: GraphService) {
+export function registerSearchTools(
+  server: McpServer,
+  graphService: GraphService,
+  _readOnly: boolean
+) {
   server.tool(
     "search_messages",
     [

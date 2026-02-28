@@ -18,7 +18,7 @@ describe("Authentication Tools", () => {
   describe("auth_status tool", () => {
     it("should register auth_status tool correctly", () => {
       mockGraphService = createMockGraphService();
-      registerAuthTools(mockServer, mockGraphService);
+      registerAuthTools(mockServer, mockGraphService, false);
 
       expect(mockServer.tool).toHaveBeenCalledWith(
         "auth_status",
@@ -30,7 +30,7 @@ describe("Authentication Tools", () => {
 
     it("should return authenticated status when user is authenticated", async () => {
       mockGraphService = createMockGraphService();
-      registerAuthTools(mockServer, mockGraphService);
+      registerAuthTools(mockServer, mockGraphService, false);
 
       const authTool = mockServer.getTool("auth_status");
       const result = await authTool.handler();
@@ -49,7 +49,7 @@ describe("Authentication Tools", () => {
 
     it("should return unauthenticated status when user is not authenticated", async () => {
       mockGraphService = createMockUnauthenticatedGraphService();
-      registerAuthTools(mockServer, mockGraphService);
+      registerAuthTools(mockServer, mockGraphService, false);
 
       const authTool = mockServer.getTool("auth_status");
       const result = await authTool.handler();
@@ -75,7 +75,7 @@ describe("Authentication Tools", () => {
         }),
       } as any;
 
-      registerAuthTools(mockServer, partialMockGraphService);
+      registerAuthTools(mockServer, partialMockGraphService, false);
 
       const authTool = mockServer.getTool("auth_status");
       const result = await authTool.handler();
@@ -95,7 +95,7 @@ describe("Authentication Tools", () => {
         getAuthStatus: vi.fn().mockRejectedValue(new Error("Auth check failed")),
       } as any;
 
-      registerAuthTools(mockServer, errorMockGraphService);
+      registerAuthTools(mockServer, errorMockGraphService, false);
 
       const authTool = mockServer.getTool("auth_status");
 
@@ -112,7 +112,7 @@ describe("Authentication Tools", () => {
         }),
       } as any;
 
-      registerAuthTools(mockServer, nullDataMockGraphService);
+      registerAuthTools(mockServer, nullDataMockGraphService, false);
 
       const authTool = mockServer.getTool("auth_status");
       const result = await authTool.handler();
@@ -131,7 +131,7 @@ describe("Authentication Tools", () => {
   describe("tool registration", () => {
     it("should register all expected authentication tools", () => {
       mockGraphService = createMockGraphService();
-      registerAuthTools(mockServer, mockGraphService);
+      registerAuthTools(mockServer, mockGraphService, false);
 
       const registeredTools = mockServer.getAllTools();
       expect(registeredTools).toContain("auth_status");
@@ -140,7 +140,7 @@ describe("Authentication Tools", () => {
 
     it("should handle GraphService being undefined", () => {
       expect(() => {
-        registerAuthTools(mockServer, undefined as any);
+        registerAuthTools(mockServer, undefined as any, false);
       }).not.toThrow();
 
       // Tool should still be registered
@@ -167,7 +167,7 @@ describe("Authentication Tools", () => {
         }),
       } as any;
 
-      registerAuthTools(mockServer, dynamicMockGraphService);
+      registerAuthTools(mockServer, dynamicMockGraphService, false);
       const authTool = mockServer.getTool("auth_status");
 
       // Check unauthenticated status

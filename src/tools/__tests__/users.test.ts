@@ -26,7 +26,7 @@ describe("Users Tools", () => {
 
   describe("get_current_user tool", () => {
     it("should register get_current_user tool correctly", () => {
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       expect(mockServer.tool).toHaveBeenCalledWith(
         "get_current_user",
@@ -38,7 +38,7 @@ describe("Users Tools", () => {
 
     it("should return current user information", async () => {
       mockClient.api().get.mockResolvedValue(mockUser);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_current_user");
       const result = await tool.handler();
@@ -67,7 +67,7 @@ describe("Users Tools", () => {
 
     it("should handle API errors gracefully", async () => {
       mockClient.api().get.mockRejectedValue(new Error("API Error"));
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_current_user");
       const result = await tool.handler();
@@ -84,7 +84,7 @@ describe("Users Tools", () => {
 
     it("should handle unknown errors", async () => {
       mockClient.api().get.mockRejectedValue("String error");
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_current_user");
       const result = await tool.handler();
@@ -102,7 +102,7 @@ describe("Users Tools", () => {
 
   describe("search_users tool", () => {
     it("should register search_users tool with correct schema", () => {
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users");
       expect(tool).toBeDefined();
@@ -115,7 +115,7 @@ describe("Users Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(searchResponse);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users");
       const result = await tool.handler({ query: "test" });
@@ -152,7 +152,7 @@ describe("Users Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(emptyResponse);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users");
       const result = await tool.handler({ query: "nonexistent" });
@@ -171,7 +171,7 @@ describe("Users Tools", () => {
       const undefinedResponse: GraphApiResponse<User> = {};
 
       mockClient.api().get.mockResolvedValue(undefinedResponse);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users");
       const result = await tool.handler({ query: "test" });
@@ -188,7 +188,7 @@ describe("Users Tools", () => {
 
     it("should handle search API errors", async () => {
       mockClient.api().get.mockRejectedValue(new Error("Search failed"));
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users");
       const result = await tool.handler({ query: "test" });
@@ -206,7 +206,7 @@ describe("Users Tools", () => {
     it("should properly escape special characters in search query", async () => {
       const searchResponse: GraphApiResponse<User> = { value: [] };
       mockClient.api().get.mockResolvedValue(searchResponse);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users");
       await tool.handler({ query: "test@example.com" });
@@ -219,7 +219,7 @@ describe("Users Tools", () => {
 
   describe("get_user tool", () => {
     it("should register get_user tool with correct schema", () => {
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_user");
       expect(tool).toBeDefined();
@@ -228,7 +228,7 @@ describe("Users Tools", () => {
 
     it("should get user by ID successfully", async () => {
       mockClient.api().get.mockResolvedValue(mockUser);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_user");
       const result = await tool.handler({ userId: "test-user-id" });
@@ -258,7 +258,7 @@ describe("Users Tools", () => {
 
     it("should get user by email successfully", async () => {
       mockClient.api().get.mockResolvedValue(mockUser);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_user");
       const result = await tool.handler({ userId: "test.user@example.com" });
@@ -270,7 +270,7 @@ describe("Users Tools", () => {
     it("should handle user not found error", async () => {
       const notFoundError = new Error("User not found");
       mockClient.api().get.mockRejectedValue(notFoundError);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_user");
       const result = await tool.handler({ userId: "nonexistent-user" });
@@ -293,7 +293,7 @@ describe("Users Tools", () => {
       };
 
       mockClient.api().get.mockResolvedValue(partialUser);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_user");
       const result = await tool.handler({ userId: "test-id" });
@@ -316,7 +316,7 @@ describe("Users Tools", () => {
     it("should handle authentication errors in all tools", async () => {
       const authError = new Error("Not authenticated");
       mockGraphService.getClient.mockRejectedValue(authError);
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tools = ["get_current_user", "search_users", "get_user"];
 
@@ -338,7 +338,7 @@ describe("Users Tools", () => {
   describe("input validation", () => {
     it("should handle empty search query", async () => {
       mockClient.api().get.mockResolvedValue({ value: [] });
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("search_users");
       const result = await tool.handler({ query: "" });
@@ -350,7 +350,7 @@ describe("Users Tools", () => {
     });
 
     it("should handle empty userId", async () => {
-      registerUsersTools(mockServer, mockGraphService);
+      registerUsersTools(mockServer, mockGraphService, false);
 
       const tool = mockServer.getTool("get_user");
       const _result = await tool.handler({ userId: "" });

@@ -25,7 +25,7 @@ vi.mock("@microsoft/microsoft-graph-client", () => ({
 // Import after mocks are set up
 import { PublicClientApplication } from "@azure/msal-node";
 import { Client } from "@microsoft/microsoft-graph-client";
-import { GraphService } from "../graph.js";
+import { FULL_SCOPES, GraphService, READ_ONLY_SCOPES } from "../graph.js";
 
 /** Set up the default MSAL mock: one account, acquireTokenSilent succeeds */
 function setupDefaultMsalMock() {
@@ -391,6 +391,37 @@ describe("GraphService", () => {
 
       // MSAL should not be used when AUTH_TOKEN is present
       expect(PublicClientApplication).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("readOnlyMode", () => {
+    it("should default to false", () => {
+      expect(graphService.readOnlyMode).toBe(false);
+    });
+
+    it("should return FULL_SCOPES when readOnlyMode is false", () => {
+      graphService.readOnlyMode = false;
+      expect(graphService.scopes).toEqual(FULL_SCOPES);
+    });
+
+    it("should return READ_ONLY_SCOPES when readOnlyMode is true", () => {
+      graphService.readOnlyMode = true;
+      expect(graphService.scopes).toEqual(READ_ONLY_SCOPES);
+    });
+
+    it("READ_ONLY_SCOPES should not contain write scopes", () => {
+      expect(READ_ONLY_SCOPES).not.toContain("ChannelMessage.Send");
+      expect(READ_ONLY_SCOPES).not.toContain("Chat.ReadWrite");
+      expect(READ_ONLY_SCOPES).not.toContain("Files.ReadWrite.All");
+    });
+
+    it("FULL_SCOPES should contain all READ_ONLY_SCOPES plus write scopes", () => {
+      for (const scope of READ_ONLY_SCOPES) {
+        expect(FULL_SCOPES).toContain(scope);
+      }
+      expect(FULL_SCOPES).toContain("ChannelMessage.Send");
+      expect(FULL_SCOPES).toContain("Chat.ReadWrite");
+      expect(FULL_SCOPES).toContain("Files.ReadWrite.All");
     });
   });
 });

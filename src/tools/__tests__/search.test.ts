@@ -54,7 +54,7 @@ describe("Search Tools", () => {
 
   describe("registerSearchTools", () => {
     it("should register search_messages and get_my_mentions", () => {
-      registerSearchTools(mockServer, mockGraphService);
+      registerSearchTools(mockServer, mockGraphService, false);
 
       expect(mockServer.tool).toHaveBeenCalledTimes(2);
       expect(mockServer.tool).toHaveBeenCalledWith(
@@ -124,7 +124,7 @@ describe("Search Tools", () => {
     let handler: (args: any) => Promise<any>;
 
     beforeEach(() => {
-      registerSearchTools(mockServer, mockGraphService);
+      registerSearchTools(mockServer, mockGraphService, false);
       const call = vi
         .mocked(mockServer.tool)
         .mock.calls.find(([name]) => name === "search_messages");
@@ -237,7 +237,7 @@ describe("Search Tools", () => {
     let handler: (args: any) => Promise<any>;
 
     beforeEach(() => {
-      registerSearchTools(mockServer, mockGraphService);
+      registerSearchTools(mockServer, mockGraphService, false);
       const call = vi
         .mocked(mockServer.tool)
         .mock.calls.find(([name]) => name === "get_my_mentions");
