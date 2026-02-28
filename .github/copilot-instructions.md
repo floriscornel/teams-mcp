@@ -1,77 +1,61 @@
 # Copilot Instructions — teams-mcp
 
+## Project Overview
+
+MCP (Model Context Protocol) server that bridges AI assistants to Microsoft Teams via the Microsoft Graph API. Published as `@floriscornel/teams-mcp` on npm. Uses MSAL device-code auth with a file-based token cache (`~/.teams-mcp-token-cache.json`).
+
 ## Architecture
 
-This is an MCP (Model Context Protocol) server that bridges AI assistants to Microsoft Graph APIs for Teams, chats, users, and search. It runs as a CLI tool (`npx @floriscornel/teams-mcp@latest`) over **stdio transport**.
+- **`src/index.ts`** — Dual-mode entrypoint: CLI commands (`authenticate`, `check`, `logout`) and MCP server (`startMcpServer`). Routes via `process.argv`.
+- **`src/services/graph.ts`** — Singleton `GraphService` wrapping the Microsoft Graph client. Handles token acquisition (env `AUTH_TOKEN` or MSAL silent refresh). All Graph API calls go through `graphService.getClient()`.
+- **`src/tools/*.ts`** — Each file exports a `register*Tools(server, graphService)` function that registers MCP tools via `server.tool(name, description, zodSchema, handler)`. Tools are grouped by domain: `auth`, `users`, `teams`, `chats`, `search`.
+- **`src/types/graph.ts`** — Re-exports `@microsoft/microsoft-graph-types` and defines project-specific interfaces (`GraphApiResponse<T>`, `*Summary` types). All response shapes use optional properties with `| undefined` to handle Graph API variability.
+- **`src/utils/`** — Stateless helpers: `markdown.ts` (Markdown→sanitized HTML via `marked`+`DOMPurify`), `html-to-markdown.ts` (Teams HTML→Markdown via `turndown` with custom rules for `<at>`, `<attachment>`, `<systemEventMessage>`), `attachments.ts` (image hosted content), `file-upload.ts` (file uploads with automatic simple ≤4MB / resumable >4MB split), `users.ts` (mention processing).
+- **`src/msal-cache.ts`** — File-based `ICachePlugin` for MSAL token persistence.
 
-### Key components
-
-- **`src/index.ts`** — Entry point. Dual-mode: CLI commands (`authenticate`, `check`, `logout`) and MCP server mode (default). Registers all tool modules against a single `McpServer` instance.
-- **`src/services/graph.ts`** — `GraphService` singleton. Manages Microsoft Graph client initialization from a stored OAuth token (`~/.msgraph-mcp-auth.json`). All Graph API calls flow through `graphService.getClient()`.
-- **`src/tools/*.ts`** — Tool registration modules (`auth`, `chats`, `search`, `teams`, `users`). Each exports a `register*Tools(server, graphService)` function that calls `server.tool()` with Zod schemas for input validation.
-- **`src/types/graph.ts`** — Re-exports `@microsoft/microsoft-graph-types` and defines custom response/summary interfaces (`GraphApiResponse<T>`, `*Summary` types). All API response shapes live here.
-- **`src/utils/`** — Shared helpers: `markdown.ts` (markdown→sanitized HTML via marked+DOMPurify), `attachments.ts` (image hosted content uploads), `users.ts` (@mention parsing and user lookup).
-
-### Data flow
-
-```
-AI Assistant → stdio → McpServer → register*Tools handler → GraphService.getClient() → Microsoft Graph API
-```
-
-## Development
+## Commands
 
 ```bash
-npm run build          # Clean + tsc compile
-npm run dev            # Watch mode (node --watch)
+npm run build          # clean + tsc
+npm run dev            # tsx watch src/index.ts
 npm test               # vitest run
-npm run test:watch     # vitest interactive
-npm run test:coverage  # vitest with v8 coverage (80% threshold on all metrics)
-npm run lint           # biome check
-npm run lint:fix       # biome check --write --unsafe
+npm run test:watch     # vitest (watch mode)
+npm run test:coverage  # vitest with v8 coverage (80% threshold on branches/functions/lines/statements)
+npm run lint           # biome check src/
+npm run lint:fix       # biome check --write --unsafe src/
+npm run format         # biome format --write src/
+npm run ci             # biome ci src/ (CI mode)
 ```
 
-## TypeScript & Module Conventions
+## CI/CD
 
-- **ESM-only** (`"type": "module"` in package.json). Use `.js` extensions in import paths (TypeScript `moduleResolution: "bundler"`).
-- **Strict mode** enabled with `noUnusedLocals`, `noUnusedParameters`, `exactOptionalPropertyTypes`, `noImplicitOverride`.
-- Prefix unused catch variables with underscore: `catch (_error)`.
-- Linting/formatting via **Biome** (not ESLint/Prettier). Use `node:` protocol for Node.js built-in imports.
+- **CI** (`.github/workflows/ci.yml`): Runs on PRs and pushes to `main`. Matrix tests Node 20/22/24. Steps: `npm run ci` (Biome), `tsc`, `vitest --coverage` with JUnit XML. Uploads coverage to Codecov.
+- **Release** (`.github/workflows/release.yml`): Triggered by `v*` tags. Runs lint + tests then `npm publish` with provenance. Bump version in `package.json` and `src/index.ts` (`McpServer` version string) before tagging.
 
-## Testing Patterns
+## Code Style & Conventions
 
-- **Framework**: Vitest with global test APIs (`describe`, `it`, `expect` — no imports needed).
-- **HTTP mocking**: MSW (Mock Service Worker) intercepts `graph.microsoft.com` calls. Shared mock handlers and fixtures live in `src/test-utils/setup.ts`. Global setup in `src/test-utils/vitest.setup.ts` starts/resets/stops the MSW server.
-- **Tool tests**: Mock `GraphService` and `McpServer` with `vi.fn()`, then extract registered handler functions from `mockServer.tool.mock.calls` to invoke directly. See `src/tools/__tests__/chats.test.ts` for the canonical pattern:
-  ```typescript
-  const call = vi.mocked(mockServer.tool).mock.calls.find(([name]) => name === "tool_name");
-  const handler = call?.[3] as (args: any) => Promise<any>;
-  ```
-- **Coverage**: 80% threshold (branches, functions, lines, statements). `index.ts` and `test-utils/` are excluded from coverage.
+- **Formatter/Linter**: Biome (not ESLint/Prettier). 2-space indent, double quotes, semicolons, LF line endings, 100-char line width, ES5 trailing commas. Run `npm run lint:fix` to auto-fix.
+- **Module system**: ESM (`"type": "module"`). Use `.js` extensions in imports even for `.ts` files (e.g., `import { GraphService } from "../services/graph.js"`).
+- **TypeScript**: Strict mode with `exactOptionalPropertyTypes`, `noImplicitAny`, `noUnusedLocals`, `noUnusedParameters`. Target ES2022. Use `node:` protocol for Node.js built-ins (e.g., `import { join } from "node:path"`).
+- **Schema validation**: Use `zod` for MCP tool parameter schemas, passed directly to `server.tool()`.
+- **Error handling in tools**: Catch errors inside each tool handler, return `{ content: [{ type: "text", text: "❌ Error: ..." }] }` — never throw from a tool handler.
+- **Graph API response typing**: Always cast Graph responses with `as GraphApiResponse<T>` or specific types. Check `response?.value?.length` before mapping.
 
-## Tool Registration Pattern
+## Testing
 
-Every tool module follows this structure — maintain it when adding new tools:
+- **Framework**: Vitest with globals enabled (`describe`, `it`, `expect` available without import, though they're typically imported explicitly).
+- **HTTP mocking**: MSW (`msw/node`) for Graph API calls. The global setup in `src/test-utils/vitest.setup.ts` starts/resets/closes the MSW server. Fixtures and default handlers live in `src/test-utils/setup.ts`.
+- **Unit test mocking**: `vi.mock()` for modules, `vi.fn()` for functions. Tests mock `GraphService.getClient()` to return a mock `Client` with chainable `.api().get()`/`.post()` methods.
+- **Test location**: Co-located `__tests__/` directories mirroring `src/` structure (e.g., `src/tools/__tests__/chats.test.ts` tests `src/tools/chats.ts`).
+- **Coverage**: v8 provider, 80% global threshold. `index.ts` and `test-utils/` are excluded from coverage.
+- **Auth in tests**: `GraphService` is a singleton — tests mock it via `vi.mock()` on `@azure/msal-node` and `@microsoft/microsoft-graph-client`, setting up `PublicClientApplication` / `Client.initWithMiddleware` stubs *before* importing the module under test. See `src/services/__tests__/graph.test.ts` for the pattern.
 
-```typescript
-export function registerXxxTools(server: McpServer, graphService: GraphService) {
-  server.tool(
-    "tool_name",           // snake_case tool name
-    "Description string",  // user-facing description
-    { /* Zod schema */ },  // input validation
-    async (args) => {
-      const client = await graphService.getClient();
-      // ... Graph API call ...
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    }
-  );
-}
-```
+## Adding a New MCP Tool
 
-After creating a new tool module, register it in `src/index.ts` inside `startMcpServer()`.
-
-## API Response Conventions
-
-- Return JSON-stringified results as `{ content: [{ type: "text", text: ... }] }`.
-- Error responses: catch errors, extract message via `error instanceof Error ? error.message : "Unknown error occurred"`, return `❌ Error: ${errorMessage}`.
-- All Graph response types use optional properties with `| undefined` to handle API variability (see `*Summary` interfaces in `src/types/graph.ts`).
-- Message sending tools support a `format` parameter (`"text"` | `"markdown"`). When `"markdown"`, content is converted via `markdownToHtml()` and sent as `contentType: "html"`.
+1. Add or extend a `register*Tools` function in `src/tools/`.
+2. Define parameters with `zod` schemas and pass to `server.tool()`.
+3. Use `await graphService.getClient()` then chain `.api(endpoint)` calls.
+4. Return `{ content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }`.
+5. Add types to `src/types/graph.ts` if new Graph API shapes are needed.
+6. Write tests in `src/tools/__tests__/` following the mock-client pattern.
+7. Register the new tool group in `src/index.ts` → `startMcpServer()` if it's a new file.

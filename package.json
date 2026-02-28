@@ -1,6 +1,6 @@
 {
   "name": "@floriscornel/teams-mcp",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "MCP server for Microsoft Graph Teams integration",
   "type": "module",
   "main": "dist/index.js",
@@ -69,7 +69,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
-    "@types/node": "^25.3.0",
+    "@types/node": "^25.3.2",
     "@types/sinon": "^21.0.0",
     "@types/turndown": "^5.0.6",
     "@vitest/coverage-v8": "^4.0.18",
