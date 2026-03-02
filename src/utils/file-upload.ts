@@ -54,6 +54,23 @@ export interface FileUploadResult {
   mimeType: string;
 }
 
+/** Graph API response from a DriveItem upload (simple PUT or final chunk). */
+type DriveItemUploadResponse = {
+  webUrl?: string;
+  eTag?: string;
+};
+
+/** Graph API response when creating a resumable upload session. */
+type UploadSessionResponse = {
+  uploadUrl?: string;
+};
+
+/** Graph API response for the channel filesFolder endpoint. */
+type ChannelFilesFolderResponse = {
+  id?: string;
+  parentReference?: { driveId?: string };
+};
+
 /**
  * Detect MIME type from file extension.
  */
@@ -96,10 +113,10 @@ async function simpleUpload(
   mimeType: string
 ): Promise<{ webUrl: string; eTag: string }> {
   const client = await graphService.getClient();
-  const response = await client
+  const response = (await client
     .api(`/drives/${driveId}/items/${parentItemId}:/${remotePath}:/content`)
     .header("Content-Type", mimeType)
-    .put(fileBuffer);
+    .put(fileBuffer)) as DriveItemUploadResponse;
   if (!response?.webUrl || !response?.eTag) {
     throw new Error("Upload failed: response did not contain webUrl/eTag");
   }
@@ -119,14 +136,17 @@ async function uploadLargeFile(
 ): Promise<{ webUrl: string; eTag: string }> {
   const client = await graphService.getClient();
 
-  const session = await client
+  const session = (await client
     .api(`/drives/${driveId}/items/${parentItemId}:/${remotePath}:/createUploadSession`)
     .post({
       item: {
         "@microsoft.graph.conflictBehavior": "rename",
       },
-    });
+    })) as UploadSessionResponse;
 
+  if (!session?.uploadUrl) {
+    throw new Error("Upload failed: upload session did not return uploadUrl");
+  }
   const uploadUrl: string = session.uploadUrl;
   const fileSize = fileBuffer.length;
 
@@ -183,7 +203,12 @@ export async function uploadFileToChannel(
   const client = await graphService.getClient();
 
   // Get the channel's SharePoint drive and folder IDs
-  const filesFolder = await client.api(`/teams/${teamId}/channels/${channelId}/filesFolder`).get();
+  const filesFolder = (await client
+    .api(`/teams/${teamId}/channels/${channelId}/filesFolder`)
+    .get()) as ChannelFilesFolderResponse;
+  if (!filesFolder?.parentReference?.driveId || !filesFolder?.id) {
+    throw new Error("Failed to resolve channel drive/folder IDs");
+  }
   const driveId: string = filesFolder.parentReference.driveId;
   const channelFolderId: string = filesFolder.id;
 
