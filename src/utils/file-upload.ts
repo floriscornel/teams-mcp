@@ -54,6 +54,23 @@ export interface FileUploadResult {
   mimeType: string;
 }
 
+/** Graph API response from a DriveItem upload (simple PUT or final chunk). */
+type DriveItemUploadResponse = {
+  webUrl?: string;
+  eTag?: string;
+};
+
+/** Graph API response when creating a resumable upload session. */
+type UploadSessionResponse = {
+  uploadUrl?: string;
+};
+
+/** Graph API response for the channel filesFolder endpoint. */
+type ChannelFilesFolderResponse = {
+  id?: string;
+  parentReference?: { driveId?: string };
+};
+
 /**
  * Detect MIME type from file extension.
  */
@@ -85,20 +102,24 @@ export async function readLocalFile(filePath: string): Promise<{ buffer: Buffer;
 
 /**
  * Simple upload for files ≤ 4 MB.
- * PUT /drives/{driveId}/items/root:/{fileName}:/content
+ * PUT /drives/{driveId}/items/{parentItemId}:/{fileName}:/content
  */
 async function simpleUpload(
   graphService: GraphService,
   driveId: string,
+  parentItemId: string,
   remotePath: string,
   fileBuffer: Buffer,
   mimeType: string
 ): Promise<{ webUrl: string; eTag: string }> {
   const client = await graphService.getClient();
-  const response = await client
-    .api(`/drives/${driveId}/items/root:/${remotePath}:/content`)
+  const response = (await client
+    .api(`/drives/${driveId}/items/${parentItemId}:/${remotePath}:/content`)
     .header("Content-Type", mimeType)
-    .put(fileBuffer);
+    .put(fileBuffer)) as DriveItemUploadResponse;
+  if (!response?.webUrl || !response?.eTag) {
+    throw new Error("Upload failed: response did not contain webUrl/eTag");
+  }
   return { webUrl: response.webUrl, eTag: response.eTag };
 }
 
@@ -109,19 +130,23 @@ async function simpleUpload(
 async function uploadLargeFile(
   graphService: GraphService,
   driveId: string,
+  parentItemId: string,
   remotePath: string,
   fileBuffer: Buffer
 ): Promise<{ webUrl: string; eTag: string }> {
   const client = await graphService.getClient();
 
-  const session = await client
-    .api(`/drives/${driveId}/items/root:/${remotePath}:/createUploadSession`)
+  const session = (await client
+    .api(`/drives/${driveId}/items/${parentItemId}:/${remotePath}:/createUploadSession`)
     .post({
       item: {
         "@microsoft.graph.conflictBehavior": "rename",
       },
-    });
+    })) as UploadSessionResponse;
 
+  if (!session?.uploadUrl) {
+    throw new Error("Upload failed: upload session did not return uploadUrl");
+  }
   const uploadUrl: string = session.uploadUrl;
   const fileSize = fileBuffer.length;
 
@@ -145,6 +170,11 @@ async function uploadLargeFile(
     if (!lastResponse.ok) {
       const errorText = await lastResponse.text();
       throw new Error(`Upload chunk failed (${lastResponse.status}): ${errorText}`);
+    }
+
+    // Drain intermediate 202 response bodies to free resources
+    if (lastResponse.status === 202) {
+      await lastResponse.text();
     }
 
     offset = chunkEnd;
@@ -172,9 +202,15 @@ export async function uploadFileToChannel(
 ): Promise<FileUploadResult> {
   const client = await graphService.getClient();
 
-  // Get the channel's SharePoint drive ID
-  const filesFolder = await client.api(`/teams/${teamId}/channels/${channelId}/filesFolder`).get();
+  // Get the channel's SharePoint drive and folder IDs
+  const filesFolder = (await client
+    .api(`/teams/${teamId}/channels/${channelId}/filesFolder`)
+    .get()) as ChannelFilesFolderResponse;
+  if (!filesFolder?.parentReference?.driveId || !filesFolder?.id) {
+    throw new Error("Failed to resolve channel drive/folder IDs");
+  }
   const driveId: string = filesFolder.parentReference.driveId;
+  const channelFolderId: string = filesFolder.id;
 
   const fileName = customFileName || basename(filePath);
   const mimeType = detectMimeType(filePath);
@@ -183,8 +219,8 @@ export async function uploadFileToChannel(
   const encodedName = encodeURIComponent(fileName);
   const uploadResult =
     size <= SIMPLE_UPLOAD_MAX_SIZE
-      ? await simpleUpload(graphService, driveId, encodedName, buffer, mimeType)
-      : await uploadLargeFile(graphService, driveId, encodedName, buffer);
+      ? await simpleUpload(graphService, driveId, channelFolderId, encodedName, buffer, mimeType)
+      : await uploadLargeFile(graphService, driveId, channelFolderId, encodedName, buffer);
 
   return {
     webUrl: uploadResult.webUrl,
@@ -209,14 +245,17 @@ export async function uploadFileToChat(
   const mimeType = detectMimeType(filePath);
   const { buffer, size } = await readLocalFile(filePath);
 
-  const driveResponse = await client.api("/me/drive").get();
+  const driveResponse = (await client.api("/me/drive").get()) as { id?: string };
+  if (!driveResponse?.id) {
+    throw new Error("Failed to resolve user drive ID");
+  }
   const driveId: string = driveResponse.id;
 
   const remotePath = `${encodeURIComponent("Microsoft Teams Chat Files")}/${encodeURIComponent(fileName)}`;
   const uploadResult =
     size <= SIMPLE_UPLOAD_MAX_SIZE
-      ? await simpleUpload(graphService, driveId, remotePath, buffer, mimeType)
-      : await uploadLargeFile(graphService, driveId, remotePath, buffer);
+      ? await simpleUpload(graphService, driveId, "root", remotePath, buffer, mimeType)
+      : await uploadLargeFile(graphService, driveId, "root", remotePath, buffer);
 
   return {
     webUrl: uploadResult.webUrl,
