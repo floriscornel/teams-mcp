@@ -109,10 +109,75 @@ describe("htmlToMarkdown", () => {
     expect(result).toBe("@Alice and @Bob are here");
   });
 
-  it("should remove Teams attachment elements", () => {
+  it("should merge consecutive at-tags for the same user using mentions array", () => {
+    const html = '<p><at id="0">Brunno</at>&nbsp;<at id="1">Joyran</at>&nbsp;hello</p>';
+    // Graph API returns mentionText per-word (one entry per <at> tag)
+    const mentions = [
+      { id: 0, mentionText: "Brunno", mentioned: { user: { id: "user-A" } } },
+      { id: 1, mentionText: "Joyran", mentioned: { user: { id: "user-A" } } },
+    ];
+    const result = htmlToMarkdown(html, mentions);
+    expect(result).toBe("@Brunno Joyran hello");
+  });
+
+  it("should merge two different people with multi-word names", () => {
+    const html =
+      '<p><at id="0">Brunno</at>&nbsp;<at id="1">Joyran</at>&nbsp;<at id="2">Pereira</at>&nbsp;<at id="3">Soares</at></p>';
+    const mentions = [
+      { id: 0, mentionText: "Brunno", mentioned: { user: { id: "user-A" } } },
+      { id: 1, mentionText: "Joyran", mentioned: { user: { id: "user-A" } } },
+      { id: 2, mentionText: "Pereira", mentioned: { user: { id: "user-B" } } },
+      { id: 3, mentionText: "Soares", mentioned: { user: { id: "user-B" } } },
+    ];
+    const result = htmlToMarkdown(html, mentions);
+    expect(result).toBe("@Brunno Joyran @Pereira Soares");
+  });
+
+  it("should not merge at-tags for different users", () => {
+    const html = '<p><at id="0">Alice</at>&nbsp;<at id="1">Bob</at></p>';
+    const mentions = [
+      { id: 0, mentionText: "Alice", mentioned: { user: { id: "user-A" } } },
+      { id: 1, mentionText: "Bob", mentioned: { user: { id: "user-B" } } },
+    ];
+    const result = htmlToMarkdown(html, mentions);
+    expect(result).toBe("@Alice @Bob");
+  });
+
+  it("should work without mentions array (backwards compatible)", () => {
+    const html = '<p><at id="0">Brunno</at>&nbsp;<at id="1">Joyran</at>&nbsp;hello</p>';
+    const result = htmlToMarkdown(html);
+    expect(result).toBe("@Brunno @Joyran hello");
+  });
+
+  it("should separate adjacent at-tags with no separator between them", () => {
+    // Teams sometimes omits &nbsp; between different people's mentions
+    const html =
+      '<p><at id="0">Lindeberg</at>&nbsp;<at id="1">Pessoa</at>&nbsp;<at id="2">Leite</at><at id="3">Bruno</at>&nbsp;<at id="4">Werneck</at>&nbsp;<at id="5">Pinto</at>&nbsp;<at id="6">Hoelz</at></p>';
+    const mentions = [
+      { id: 0, mentionText: "Lindeberg", mentioned: { user: { id: "user-A" } } },
+      { id: 1, mentionText: "Pessoa", mentioned: { user: { id: "user-A" } } },
+      { id: 2, mentionText: "Leite", mentioned: { user: { id: "user-A" } } },
+      { id: 3, mentionText: "Bruno", mentioned: { user: { id: "user-B" } } },
+      { id: 4, mentionText: "Werneck", mentioned: { user: { id: "user-B" } } },
+      { id: 5, mentionText: "Pinto", mentioned: { user: { id: "user-B" } } },
+      { id: 6, mentionText: "Hoelz", mentioned: { user: { id: "user-B" } } },
+    ];
+    const result = htmlToMarkdown(html, mentions);
+    expect(result).toBe("@Lindeberg Pessoa Leite @Bruno Werneck Pinto Hoelz");
+  });
+
+  it("should convert Teams attachment elements to inline markers", () => {
     const html = '<p>See the file</p><attachment id="abc123"></attachment>';
     const result = htmlToMarkdown(html);
-    expect(result).toBe("See the file");
+    expect(result).toContain("See the file");
+    expect(result).toContain("{attachment:abc123}");
+  });
+
+  it("should handle attachment elements without id", () => {
+    const html = "<p>See the file</p><attachment></attachment>";
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("See the file");
+    expect(result).toContain("{attachment}");
   });
 
   it("should remove systemEventMessage elements", () => {

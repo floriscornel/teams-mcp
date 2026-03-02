@@ -1,4 +1,6 @@
+import type { ChatMessageAttachment } from "@microsoft/microsoft-graph-types";
 import type { GraphService } from "../services/graph.js";
+import type { AttachmentSummary } from "../types/graph.js";
 
 export interface ImageAttachment {
   id: string;
@@ -126,4 +128,31 @@ export async function imageUrlToBase64(
     console.error("Error converting image URL to base64:", error);
     return null;
   }
+}
+
+/**
+ * Extracts a minimal attachment summary from Graph API ChatMessageAttachment array.
+ * Returns undefined if there are no meaningful attachments to report.
+ */
+export function extractAttachmentSummaries(
+  attachments: ChatMessageAttachment[] | null | undefined
+): AttachmentSummary[] | undefined {
+  if (!attachments || attachments.length === 0) {
+    return undefined;
+  }
+
+  const summaries: AttachmentSummary[] = [];
+  for (const att of attachments) {
+    if (!att.id && !att.name && !att.contentUrl) continue;
+
+    summaries.push({
+      id: att.id ?? undefined,
+      name: att.name ?? undefined,
+      contentType: att.contentType ?? undefined,
+      contentUrl: att.contentUrl ?? undefined,
+      thumbnailUrl: att.thumbnailUrl ?? undefined,
+    });
+  }
+
+  return summaries.length > 0 ? summaries : undefined;
 }

@@ -39,7 +39,7 @@ describe("Chat Tools", () => {
     it("should register all chat tools", () => {
       registerChatTools(mockServer, mockGraphService, false);
 
-      expect(mockServer.tool).toHaveBeenCalledTimes(7);
+      expect(mockServer.tool).toHaveBeenCalledTimes(8);
       expect(mockServer.tool).toHaveBeenCalledWith(
         "list_chats",
         expect.any(String),
@@ -87,7 +87,7 @@ describe("Chat Tools", () => {
     it("should register only read-only chat tools when readOnly is true", () => {
       registerChatTools(mockServer, mockGraphService, true);
 
-      expect(mockServer.tool).toHaveBeenCalledTimes(2);
+      expect(mockServer.tool).toHaveBeenCalledTimes(3);
       expect(mockServer.tool).toHaveBeenCalledWith(
         "list_chats",
         expect.any(String),
@@ -96,6 +96,12 @@ describe("Chat Tools", () => {
       );
       expect(mockServer.tool).toHaveBeenCalledWith(
         "get_chat_messages",
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(mockServer.tool).toHaveBeenCalledWith(
+        "download_chat_hosted_content",
         expect.any(String),
         expect.any(Object),
         expect.any(Function)
@@ -1304,6 +1310,152 @@ describe("Chat Tools", () => {
       });
 
       expect(result.content[0].text).toBe("❌ Failed to send file: Permission denied");
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("download_chat_hosted_content", () => {
+    let downloadHandler: (args: any) => Promise<any>;
+
+    beforeEach(() => {
+      registerChatTools(mockServer, mockGraphService, false);
+      const call = vi
+        .mocked(mockServer.tool)
+        .mock.calls.find(([name]) => name === "download_chat_hosted_content");
+      downloadHandler = call?.[3] as unknown as (args: any) => Promise<any>;
+    });
+
+    it("should register the handler", () => {
+      expect(downloadHandler).toBeDefined();
+    });
+
+    it("should handle message not found", async () => {
+      const mockApiChain = {
+        get: vi.fn().mockResolvedValue(null),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await downloadHandler({
+        chatId: "test-chat",
+        messageId: "invalid-msg",
+      });
+
+      expect(result.content[0].text).toContain("❌ Error: Message not found");
+      expect(result.isError).toBe(true);
+    });
+
+    it("should handle no hosted content in message", async () => {
+      const mockApiChain = {
+        get: vi.fn().mockResolvedValue({
+          id: "msg-1",
+          body: { content: "Plain text message" },
+        }),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await downloadHandler({
+        chatId: "test-chat",
+        messageId: "msg-1",
+      });
+
+      expect(result.content[0].text).toContain("❌ Error: No hosted content found");
+      expect(result.isError).toBe(true);
+    });
+
+    it("should download hosted content as base64", async () => {
+      const imageData = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+      const mockApiChain = {
+        get: vi.fn(),
+        responseType: vi.fn().mockReturnThis(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      mockApiChain.get
+        .mockResolvedValueOnce({
+          id: "msg-1",
+          body: {
+            content:
+              '<img src="https://graph.microsoft.com/v1.0/chats/c/messages/m/hostedContents/amc_abc123/$value">',
+          },
+        })
+        .mockResolvedValueOnce(imageData.buffer);
+
+      const result = await downloadHandler({
+        chatId: "test-chat",
+        messageId: "msg-1",
+      });
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.successCount).toBe(1);
+      expect(parsed.contents[0].id).toBe("amc_abc123");
+      expect(parsed.contents[0].base64Data).toBe(Buffer.from(imageData).toString("base64"));
+    });
+
+    it("should handle specific hostedContentId", async () => {
+      const imageData = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+      const mockApiChain = {
+        get: vi.fn(),
+        responseType: vi.fn().mockReturnThis(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      mockApiChain.get
+        .mockResolvedValueOnce({
+          id: "msg-1",
+          body: {
+            content:
+              '<img src="https://graph.microsoft.com/v1.0/chats/c/messages/m/hostedContents/amc_abc123/$value"><img src="https://graph.microsoft.com/v1.0/chats/c/messages/m/hostedContents/amc_def456/$value">',
+          },
+        })
+        .mockResolvedValueOnce(imageData.buffer);
+
+      const result = await downloadHandler({
+        chatId: "test-chat",
+        messageId: "msg-1",
+        hostedContentId: "amc_abc123",
+      });
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.totalContentItems).toBe(1);
+      expect(parsed.contents[0].id).toBe("amc_abc123");
+    });
+
+    it("should handle download errors gracefully", async () => {
+      const mockApiChain = {
+        get: vi.fn(),
+        responseType: vi.fn().mockReturnThis(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      mockApiChain.get
+        .mockResolvedValueOnce({
+          id: "msg-1",
+          body: {
+            content:
+              '<img src="https://graph.microsoft.com/v1.0/chats/c/messages/m/hostedContents/amc_abc123/$value">',
+          },
+        })
+        .mockRejectedValueOnce(new Error("Download failed"));
+
+      const result = await downloadHandler({
+        chatId: "test-chat",
+        messageId: "msg-1",
+      });
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.errorCount).toBe(1);
+      expect(parsed.contents[0].error).toBe("Download failed");
+    });
+
+    it("should handle Graph API errors", async () => {
+      const mockApiChain = {
+        get: vi.fn().mockRejectedValue(new Error("API error")),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await downloadHandler({
+        chatId: "test-chat",
+        messageId: "msg-1",
+      });
+
+      expect(result.content[0].text).toContain("❌ Error: API error");
       expect(result.isError).toBe(true);
     });
   });

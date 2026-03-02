@@ -162,19 +162,23 @@ Use the `contentFormat` parameter to control how message content is returned:
 
 ### What Gets Converted
 
-| HTML Element                           | Markdown Output             |
-| -------------------------------------- | --------------------------- |
-| `<at id="0">Name</at>` (Teams mention) | `@Name`                     |
-| `<strong>text</strong>`                | `**text**`                  |
-| `<em>text</em>`                        | `*text*`                    |
-| `<code>text</code>`                    | `` `text` ``                |
-| `<a href="url">text</a>`               | `[text](url)`               |
-| `<ul><li>item</li></ul>`               | `- item`                    |
-| `<table>...</table>`                   | GFM Markdown table          |
-| `<attachment id="...">`                | *(removed)*                 |
-| `<systemEventMessage/>`                | *(removed)*                 |
-| `<hr>`                                 | `---`                       |
-| `&nbsp;`, `&amp;`, etc.                | Decoded to plain characters |
+| HTML Element                           | Markdown Output                                          |
+| -------------------------------------- | -------------------------------------------------------- |
+| `<at id="0">Name</at>` (Teams mention) | `@Name` (multi-word names merged using mentions metadata) |
+| `<strong>text</strong>`                | `**text**`                                               |
+| `<em>text</em>`                        | `*text*`                                                 |
+| `<code>text</code>`                    | `` `text` ``                                             |
+| `<a href="url">text</a>`               | `[text](url)`                                            |
+| `<ul><li>item</li></ul>`               | `- item`                                                 |
+| `<table>...</table>`                   | GFM Markdown table                                       |
+| `<attachment id="...">`                | `{attachment:id}`                                        |
+| `<systemEventMessage/>`                | *(removed)*                                              |
+| `<hr>`                                 | `---`                                                    |
+| `&nbsp;`, `&amp;`, etc.                | Decoded to plain characters                              |
+
+### Attachment Metadata
+
+Messages that contain file attachments or inline images include an `attachments` array in the response with metadata for each attachment (id, name, contentType, contentUrl, thumbnailUrl). The inline `{attachment:id}` markers in the markdown content correlate with entries in this array, allowing consumers to identify and download attachments via `download_message_hosted_content` or `download_chat_hosted_content`.
 
 ### Example Usage
 
@@ -326,7 +330,8 @@ npx @floriscornel/teams-mcp@latest authenticate
 - `send_file_to_chat` - Upload a local file and send it as a message to a chat
 
 #### Media Operations
-- `download_message_hosted_content` - Download hosted content (images, files) from messages
+- `download_message_hosted_content` - Download hosted content (images, files) from channel messages
+- `download_chat_hosted_content` - Download hosted content (images, files) from chat messages
 
 #### Search Operations
 - `search_messages` - Search across all Teams messages using KQL syntax

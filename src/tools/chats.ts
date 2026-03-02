@@ -11,6 +11,8 @@ import type {
   MessageSummary,
   User,
 } from "../types/graph.js";
+import { extractAttachmentSummaries } from "../utils/attachments.js";
+import { detectContentType } from "../utils/content-type.js";
 import {
   buildFileAttachment,
   escapeHtml,
@@ -263,9 +265,14 @@ export function registerChatTools(
         const effectiveContentFormat = contentFormat ?? "markdown";
         const messageList: MessageSummary[] = limitedMessages.map((message: ChatMessage) => ({
           id: message.id,
-          content: formatMessageContent(message.body?.content, effectiveContentFormat),
+          content: formatMessageContent(
+            message.body?.content,
+            effectiveContentFormat,
+            message.mentions
+          ),
           from: message.from?.user?.displayName,
           createdDateTime: message.createdDateTime,
+          attachments: extractAttachmentSummaries(message.attachments),
         }));
 
         return {
@@ -298,6 +305,180 @@ export function registerChatTools(
               text: `❌ Error: ${errorMessage}`,
             },
           ],
+        };
+      }
+    }
+  );
+
+  // Download hosted content (images) from a chat message
+  server.tool(
+    "download_chat_hosted_content",
+    "Download hosted content (such as images) from a chat message. Returns the content as base64 encoded data along with metadata. Use this to retrieve images or other inline content embedded in chat messages.",
+    {
+      chatId: z.string().describe("Chat ID"),
+      messageId: z.string().describe("Message ID containing the hosted content"),
+      hostedContentId: z
+        .string()
+        .optional()
+        .describe(
+          "Specific hosted content ID to download. If not provided, downloads all hosted contents from the message."
+        ),
+      savePath: z
+        .string()
+        .optional()
+        .describe(
+          "Optional file path to save the content. Supports UNC paths (e.g., \\\\wsl.localhost\\Ubuntu\\tmp\\file.png)."
+        ),
+    },
+    async ({ chatId, messageId, hostedContentId, savePath }) => {
+      try {
+        const client = await graphService.getClient();
+
+        const message = (await client
+          .api(`/me/chats/${chatId}/messages/${messageId}`)
+          .get()) as ChatMessage;
+
+        if (!message) {
+          return {
+            content: [{ type: "text", text: "❌ Error: Message not found." }],
+            isError: true,
+          };
+        }
+
+        // Extract hosted content IDs from the message body
+        const bodyContent = message.body?.content || "";
+        const hostedContentRegex = /hostedContents\/([a-zA-Z0-9_=-]+)\/\$value|itemid="([^"]+)"/gi;
+        const matches: string[] = [];
+        let match: RegExpExecArray | null;
+
+        // biome-ignore lint/suspicious/noAssignInExpressions: needed for regex extraction
+        while ((match = hostedContentRegex.exec(bodyContent)) !== null) {
+          const contentId = match[1] || match[2];
+          if (contentId && !matches.includes(contentId)) {
+            matches.push(contentId);
+          }
+        }
+
+        if (matches.length === 0) {
+          return {
+            content: [{ type: "text", text: "❌ Error: No hosted content found in this message." }],
+            isError: true,
+          };
+        }
+
+        const contentIds = hostedContentId ? [hostedContentId] : matches;
+
+        const results: Array<{
+          id: string;
+          contentType: string;
+          size: number;
+          base64Data?: string;
+          savedTo?: string;
+          error?: string;
+        }> = [];
+
+        for (const contentId of contentIds) {
+          try {
+            const response = await client
+              .api(`/chats/${chatId}/messages/${messageId}/hostedContents/${contentId}/$value`)
+              .responseType("arraybuffer" as any)
+              .get();
+
+            const buffer = Buffer.from(response as ArrayBuffer);
+            const base64Data = buffer.toString("base64");
+            const contentType = detectContentType(buffer);
+
+            const result: {
+              id: string;
+              contentType: string;
+              size: number;
+              base64Data?: string;
+              savedTo?: string;
+            } = {
+              id: contentId,
+              contentType,
+              size: buffer.length,
+            };
+
+            if (savePath) {
+              const fs = await import("node:fs/promises");
+              const path = await import("node:path");
+
+              const normalizedPath = savePath.replace(/\\\\/g, "\\");
+              const isUncPath =
+                normalizedPath.startsWith("\\\\") || normalizedPath.startsWith("//");
+
+              // Basic path traversal protection
+              if (!isUncPath && normalizedPath.includes("..")) {
+                results.push({
+                  id: contentId,
+                  contentType: "unknown",
+                  size: 0,
+                  error: "Path traversal not allowed",
+                });
+                continue;
+              }
+
+              let finalPath = normalizedPath;
+              if (contentIds.length > 1) {
+                const ext = path.extname(normalizedPath);
+                const base = ext ? normalizedPath.slice(0, -ext.length) : normalizedPath;
+                const index = contentIds.indexOf(contentId);
+                finalPath = `${base}_${index}${ext}`;
+              }
+
+              const targetPath = isUncPath ? finalPath : path.resolve(finalPath);
+              await fs.writeFile(targetPath, buffer);
+              result.savedTo = targetPath;
+            } else {
+              result.base64Data = base64Data;
+            }
+
+            results.push(result);
+          } catch (downloadError) {
+            const errorMsg =
+              downloadError instanceof Error ? downloadError.message : "Unknown error";
+            results.push({
+              id: contentId,
+              contentType: "unknown",
+              size: 0,
+              error: errorMsg,
+            });
+          }
+        }
+
+        const successCount = results.filter((r) => !r.error).length;
+        const errorCount = results.filter((r) => r.error).length;
+
+        let summary = `Downloaded ${successCount} of ${contentIds.length} hosted content(s)`;
+        if (errorCount > 0) {
+          summary += ` (${errorCount} failed)`;
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  summary,
+                  messageId,
+                  totalContentItems: contentIds.length,
+                  successCount,
+                  errorCount,
+                  contents: results,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return {
+          content: [{ type: "text", text: `❌ Error: ${errorMessage}` }],
+          isError: true,
         };
       }
     }
