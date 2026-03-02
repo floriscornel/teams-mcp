@@ -245,7 +245,10 @@ export async function uploadFileToChat(
   const mimeType = detectMimeType(filePath);
   const { buffer, size } = await readLocalFile(filePath);
 
-  const driveResponse = await client.api("/me/drive").get();
+  const driveResponse = (await client.api("/me/drive").get()) as { id?: string };
+  if (!driveResponse?.id) {
+    throw new Error("Failed to resolve user drive ID");
+  }
   const driveId: string = driveResponse.id;
 
   const remotePath = `${encodeURIComponent("Microsoft Teams Chat Files")}/${encodeURIComponent(fileName)}`;

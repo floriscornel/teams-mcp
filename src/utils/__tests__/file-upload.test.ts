@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { promises as fs } from "node:fs";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildFileAttachment,
   detectMimeType,
@@ -6,6 +7,8 @@ import {
   extractGuidFromETag,
   type FileUploadResult,
   formatFileSize,
+  uploadFileToChannel,
+  uploadFileToChat,
 } from "../file-upload.js";
 
 describe("detectMimeType", () => {
@@ -149,5 +152,218 @@ describe("formatFileSize", () => {
 
   it("should format gigabytes", () => {
     expect(formatFileSize(2 * 1024 * 1024 * 1024)).toBe("2.0 GB");
+  });
+});
+
+describe("uploadFileToChannel", () => {
+  let mockClient: any;
+  let mockGraphService: any;
+
+  beforeEach(() => {
+    vi.mocked(fs.readFile).mockResolvedValue(Buffer.from("test-file-content"));
+
+    mockClient = {
+      api: vi.fn().mockImplementation((path: string) => {
+        if (path.includes("/filesFolder")) {
+          return {
+            get: vi.fn().mockResolvedValue({
+              id: "channel-folder-id",
+              parentReference: { driveId: "drive-123" },
+            }),
+          };
+        }
+        if (path.includes("/content")) {
+          return {
+            header: vi.fn().mockReturnValue({
+              put: vi.fn().mockResolvedValue({
+                webUrl: "https://sharepoint.com/uploaded-file.pdf",
+                eTag: '"{AAAA-BBBB-CCCC},1"',
+              }),
+            }),
+          };
+        }
+        return { get: vi.fn(), post: vi.fn() };
+      }),
+    };
+
+    mockGraphService = {
+      getClient: vi.fn().mockResolvedValue(mockClient),
+    };
+  });
+
+  it("should upload a file and return correct result", async () => {
+    const result = await uploadFileToChannel(
+      mockGraphService,
+      "team-1",
+      "channel-1",
+      "/tmp/report.pdf"
+    );
+
+    expect(result.webUrl).toBe("https://sharepoint.com/uploaded-file.pdf");
+    expect(result.attachmentId).toBe("AAAA-BBBB-CCCC");
+    expect(result.fileName).toBe("report.pdf");
+    expect(result.mimeType).toBe("application/pdf");
+  });
+
+  it("should use custom fileName when provided", async () => {
+    const result = await uploadFileToChannel(
+      mockGraphService,
+      "team-1",
+      "channel-1",
+      "/tmp/report.pdf",
+      "custom-name.pdf"
+    );
+
+    expect(result.fileName).toBe("custom-name.pdf");
+  });
+
+  it("should throw when filesFolder response is missing driveId", async () => {
+    mockClient.api.mockImplementation((path: string) => {
+      if (path.includes("/filesFolder")) {
+        return {
+          get: vi.fn().mockResolvedValue({
+            id: "folder-id",
+            parentReference: {},
+          }),
+        };
+      }
+      return { get: vi.fn() };
+    });
+
+    await expect(
+      uploadFileToChannel(mockGraphService, "team-1", "channel-1", "/tmp/file.pdf")
+    ).rejects.toThrow("Failed to resolve channel drive/folder IDs");
+  });
+
+  it("should throw when filesFolder response is missing folder id", async () => {
+    mockClient.api.mockImplementation((path: string) => {
+      if (path.includes("/filesFolder")) {
+        return {
+          get: vi.fn().mockResolvedValue({
+            parentReference: { driveId: "drive-123" },
+          }),
+        };
+      }
+      return { get: vi.fn() };
+    });
+
+    await expect(
+      uploadFileToChannel(mockGraphService, "team-1", "channel-1", "/tmp/file.pdf")
+    ).rejects.toThrow("Failed to resolve channel drive/folder IDs");
+  });
+
+  it("should use channel folder ID in upload API path", async () => {
+    await uploadFileToChannel(mockGraphService, "team-1", "channel-1", "/tmp/file.pdf");
+
+    const apiCalls = mockClient.api.mock.calls.map((c: any[]) => c[0]);
+    const uploadCall = apiCalls.find((p: string) => p.includes("/content"));
+    expect(uploadCall).toContain("/items/channel-folder-id:");
+  });
+
+  it("should throw when upload response is missing webUrl", async () => {
+    mockClient.api.mockImplementation((path: string) => {
+      if (path.includes("/filesFolder")) {
+        return {
+          get: vi.fn().mockResolvedValue({
+            id: "channel-folder-id",
+            parentReference: { driveId: "drive-123" },
+          }),
+        };
+      }
+      if (path.includes("/content")) {
+        return {
+          header: vi.fn().mockReturnValue({
+            put: vi.fn().mockResolvedValue({ eTag: '"{GUID},1"' }),
+          }),
+        };
+      }
+      return { get: vi.fn() };
+    });
+
+    await expect(
+      uploadFileToChannel(mockGraphService, "team-1", "channel-1", "/tmp/file.pdf")
+    ).rejects.toThrow("Upload failed: response did not contain webUrl/eTag");
+  });
+});
+
+describe("uploadFileToChat", () => {
+  let mockClient: any;
+  let mockGraphService: any;
+
+  beforeEach(() => {
+    vi.mocked(fs.readFile).mockResolvedValue(Buffer.from("test-file-content"));
+
+    mockClient = {
+      api: vi.fn().mockImplementation((path: string) => {
+        if (path === "/me/drive") {
+          return {
+            get: vi.fn().mockResolvedValue({ id: "user-drive-id" }),
+          };
+        }
+        if (path.includes("/content")) {
+          return {
+            header: vi.fn().mockReturnValue({
+              put: vi.fn().mockResolvedValue({
+                webUrl: "https://onedrive.com/chat-file.docx",
+                eTag: '"{DDDD-EEEE-FFFF},1"',
+              }),
+            }),
+          };
+        }
+        return { get: vi.fn(), post: vi.fn() };
+      }),
+    };
+
+    mockGraphService = {
+      getClient: vi.fn().mockResolvedValue(mockClient),
+    };
+  });
+
+  it("should upload a file to chat and return correct result", async () => {
+    const result = await uploadFileToChat(mockGraphService, "/tmp/document.docx");
+
+    expect(result.webUrl).toBe("https://onedrive.com/chat-file.docx");
+    expect(result.attachmentId).toBe("DDDD-EEEE-FFFF");
+    expect(result.fileName).toBe("document.docx");
+    expect(result.mimeType).toBe(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+  });
+
+  it("should use custom fileName when provided", async () => {
+    const result = await uploadFileToChat(mockGraphService, "/tmp/document.docx", "renamed.docx");
+
+    expect(result.fileName).toBe("renamed.docx");
+  });
+
+  it("should use 'root' as parentItemId in upload path", async () => {
+    await uploadFileToChat(mockGraphService, "/tmp/file.txt");
+
+    const apiCalls = mockClient.api.mock.calls.map((c: any[]) => c[0]);
+    const uploadCall = apiCalls.find((p: string) => p.includes("/content"));
+    expect(uploadCall).toContain("/items/root:");
+  });
+
+  it("should include 'Microsoft Teams Chat Files' in upload path", async () => {
+    await uploadFileToChat(mockGraphService, "/tmp/file.txt");
+
+    const apiCalls = mockClient.api.mock.calls.map((c: any[]) => c[0]);
+    const uploadCall = apiCalls.find((p: string) => p.includes("/content"));
+    expect(uploadCall).toContain(encodeURIComponent("Microsoft Teams Chat Files"));
+  });
+
+  it("should throw when drive response is missing id", async () => {
+    mockClient.api.mockImplementation((path: string) => {
+      if (path === "/me/drive") {
+        return {
+          get: vi.fn().mockResolvedValue({}),
+        };
+      }
+      return { get: vi.fn() };
+    });
+
+    await expect(uploadFileToChat(mockGraphService, "/tmp/file.pdf")).rejects.toThrow(
+      "Failed to resolve user drive ID"
+    );
   });
 });
