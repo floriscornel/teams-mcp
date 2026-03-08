@@ -10,7 +10,7 @@ import {
 } from "@azure/msal-node";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { cachePlugin } from "./msal-cache.js";
+import { createCachePlugin } from "./msal-cache.js";
 import { FULL_SCOPES, GraphService, READ_ONLY_SCOPES } from "./services/graph.js";
 import { registerAuthTools } from "./tools/auth.js";
 import { registerChatTools } from "./tools/chats.js";
@@ -51,13 +51,14 @@ async function authenticate(readOnly: boolean) {
   try {
     console.log("\n📱 Using device code flow...");
 
+    const cachePlugin = await createCachePlugin();
     const msalConfig: Configuration = {
       auth: {
         clientId: CLIENT_ID,
         authority: AUTHORITY,
       },
       cache: {
-        cachePlugin, // Use our custom file-based cache for refresh tokens
+        cachePlugin,
       },
     };
 
