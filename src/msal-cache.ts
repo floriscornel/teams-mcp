@@ -33,68 +33,81 @@ const CACHE_PATH = join(homedir(), ".teams-mcp-token-cache.json");
  *             Set TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to fall back to an
  *             unencrypted file when libsecret is unavailable.
  */
-export async function createCachePlugin(): Promise<ICachePlugin> {
+/** Creates the OS-native persistence used for the token cache (shared by createCachePlugin and clearTokenCache). */
+async function createCachePersistence(): Promise<
+  Awaited<ReturnType<typeof KeychainPersistence.create>> &
+    { delete: () => Promise<void> }
+> {
   const platform = process.platform;
 
   if (platform === "darwin") {
-    // macOS: Keychain — tokens never written to disk in plaintext
-    const persistence = await KeychainPersistence.create(
+    return await KeychainPersistence.create(
       CACHE_PATH,
-      "teams-mcp",           // Keychain service name
-      "MSALCache"            // Keychain account name
+      "teams-mcp",
+      "MSALCache"
     );
-    return new PersistenceCachePlugin(persistence);
   }
 
   if (platform === "win32") {
-    // Windows: DPAPI-encrypted file — only decryptable by the current user
-    const persistence = await FilePersistenceWithDataProtection.create(
+    return await FilePersistenceWithDataProtection.create(
       CACHE_PATH,
       DataProtectionScope.CurrentUser
     );
-    return new PersistenceCachePlugin(persistence);
   }
 
   if (platform === "linux") {
-    // Linux: libsecret (Secret Service API)
-    // Optional plaintext fallback for headless/CI environments
     const allowPlaintext =
       process.env.TEAMS_MCP_ALLOW_PLAINTEXT_CACHE === "true";
-
     try {
-      const persistence = await LibSecretPersistence.create(
+      return await LibSecretPersistence.create(
         CACHE_PATH,
-        "teams-mcp",         // Secret Service schema name
-        "MSALCache"          // Secret Service collection
+        "teams-mcp",
+        "MSALCache"
       );
-      return new PersistenceCachePlugin(persistence);
     } catch (err) {
       if (allowPlaintext) {
         console.error(
           "Warning: libsecret unavailable, falling back to unencrypted " +
-          "token cache. Set TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to " +
-          "suppress this warning in environments without a keyring."
+            "token cache. Set TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to " +
+            "suppress this warning in environments without a keyring."
         );
-        const persistence = await FilePersistence.create(CACHE_PATH);
-        return new PersistenceCachePlugin(persistence);
+        return await FilePersistence.create(CACHE_PATH);
       }
       throw new Error(
         "Unable to initialise secure token cache on Linux: libsecret is " +
-        "not available. Install libsecret-1-dev (Debian/Ubuntu) or " +
-        "libsecret-devel (Fedora/RHEL), or set " +
-        "TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to use an unencrypted file " +
-        "instead.\n\nOriginal error: " + String(err)
+          "not available. Install libsecret-1-dev (Debian/Ubuntu) or " +
+          "libsecret-devel (Fedora/RHEL), or set " +
+          "TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to use an unencrypted file " +
+          "instead.\n\nOriginal error: " +
+          String(err)
       );
     }
   }
 
-  // Unsupported platform — best-effort unencrypted file with a clear warning
   console.error(
     `Warning: Secure token storage is not supported on platform "${platform}". ` +
-    "Tokens will be stored in an unencrypted file at " + CACHE_PATH
+      "Tokens will be stored in an unencrypted file at " +
+      CACHE_PATH
   );
-  const persistence = await FilePersistence.create(CACHE_PATH);
+  return await FilePersistence.create(CACHE_PATH);
+}
+
+export async function createCachePlugin(): Promise<ICachePlugin> {
+  const persistence = await createCachePersistence();
   return new PersistenceCachePlugin(persistence);
+}
+
+/**
+ * Clears the token cache from OS-native storage (Keychain, DPAPI, or libsecret).
+ * Call this on logout so credentials are fully removed.
+ */
+export async function clearTokenCache(): Promise<void> {
+  try {
+    const persistence = await createCachePersistence();
+    await persistence.delete();
+  } catch (err) {
+    // Ignore if nothing was stored (e.g. first run or already logged out)
+  }
 }
 
 export { CACHE_PATH };

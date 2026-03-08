@@ -10,7 +10,12 @@ import {
 } from "@azure/msal-node";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createCachePlugin } from "./msal-cache.js";
+import { clearTokenCache, createCachePlugin } from "./msal-cache.js";
+import {
+  deleteAuthInfoSecure,
+  readAuthInfoSecure,
+  writeAuthInfoSecure,
+} from "./secure-storage.js";
 import { FULL_SCOPES, GraphService, READ_ONLY_SCOPES } from "./services/graph.js";
 import { registerAuthTools } from "./tools/auth.js";
 import { registerChatTools } from "./tools/chats.js";
@@ -22,18 +27,31 @@ import { registerUsersTools } from "./tools/users.js";
 const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
 const AUTHORITY = "https://login.microsoftonline.com/common";
 
-const AUTH_INFO_PATH = join(homedir(), ".msgraph-mcp-auth.json");
+// Legacy path for migration from plaintext auth file to secure storage
+const LEGACY_AUTH_INFO_PATH = join(homedir(), ".msgraph-mcp-auth.json");
 
 /** Check whether CLI args contain --read-only. */
 function hasReadOnlyFlag(args: string[]): boolean {
   return args.includes("--read-only");
 }
 
-/** Read the persisted auth info file (best-effort). */
+/** Read auth info from OS secure storage; migrates from legacy plaintext file if present. */
 async function readAuthInfo(): Promise<Record<string, unknown> | undefined> {
+  let data: string | undefined = await readAuthInfoSecure();
+  if (data !== undefined) {
+    try {
+      return JSON.parse(data) as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
+  }
+  // Migrate from legacy plaintext file
   try {
-    const data = await fs.readFile(AUTH_INFO_PATH, "utf8");
-    return JSON.parse(data) as Record<string, unknown>;
+    data = await fs.readFile(LEGACY_AUTH_INFO_PATH, "utf8");
+    const parsed = JSON.parse(data) as Record<string, unknown>;
+    await writeAuthInfoSecure(JSON.stringify(parsed, null, 2));
+    await fs.unlink(LEGACY_AUTH_INFO_PATH).catch(() => {});
+    return parsed;
   } catch {
     return undefined;
   }
@@ -85,12 +103,12 @@ async function authenticate(readOnly: boolean) {
         grantedScopes: result.scopes,
       };
 
-      await fs.writeFile(AUTH_INFO_PATH, JSON.stringify(authInfo, null, 2));
+      await writeAuthInfoSecure(JSON.stringify(authInfo, null, 2));
 
       console.log("\n✅ Authentication successful!");
       console.log(`👤 Signed in as: ${result.account?.username || "Unknown"}`);
       console.log(`🔒 Mode: ${modeLabel}`);
-      console.log(`💾 Credentials saved to: ${AUTH_INFO_PATH}`);
+      console.log("💾 Credentials saved to OS secure storage (Keychain / Windows Credential Manager / libsecret)");
       console.log("🔄 Refresh token cached for automatic renewal");
       console.log("\n🚀 You can now use the MCP server in Cursor!");
       console.log("   The server will automatically use these credentials.");
@@ -113,8 +131,8 @@ async function authenticate(readOnly: boolean) {
 
 async function checkAuth() {
   try {
-    const data = await fs.readFile(AUTH_INFO_PATH, "utf8");
-    const authInfo = JSON.parse(data);
+    const authInfo = await readAuthInfo();
+    if (!authInfo?.authenticated || !authInfo?.clientId) return false;
 
     if (authInfo.authenticated && authInfo.clientId) {
       console.log("✅ Authentication found");
@@ -162,17 +180,13 @@ async function checkAuth() {
 }
 
 async function logout() {
-  const CACHE_PATH = join(homedir(), ".teams-mcp-token-cache.json");
+  await deleteAuthInfoSecure();
+  await clearTokenCache();
 
+  // Remove legacy plaintext auth file if it still exists
   try {
-    await fs.unlink(AUTH_INFO_PATH);
-  } catch (_error) {
-    // Ignore if file doesn't exist
-  }
-
-  try {
-    await fs.unlink(CACHE_PATH);
-  } catch (_error) {
+    await fs.unlink(LEGACY_AUTH_INFO_PATH);
+  } catch {
     // Ignore if file doesn't exist
   }
 
