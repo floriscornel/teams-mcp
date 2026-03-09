@@ -85,22 +85,39 @@ async function createAuthInfoPersistence(): Promise<PersistenceLike> {
           accountName
         )) as PersistenceLike;
       } catch (err) {
-        console.error(
-          "Secure storage (libsecret) unavailable, falling back to plaintext file:",
-          err
+        throw new Error(
+          "Unable to initialise secure auth storage on Linux: libsecret is " +
+            "not available. Install libsecret-1-dev (Debian/Ubuntu) or " +
+            "libsecret-devel (Fedora/RHEL), or set " +
+            "TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to use an unencrypted file " +
+            "instead.\n\nOriginal error: " +
+            String(err)
         );
-        return createPlaintextPersistence();
       }
     }
 
-    // Unsupported platform: fall back to plaintext file
-    return (await FilePersistence.create(AUTH_INFO_PATH)) as PersistenceLike;
-  } catch (err) {
-    console.error(
-      "Could not load or use native secure storage, falling back to plaintext file:",
-      err
-    );
+    // Unsupported platform: require explicit opt-in for plaintext
+    if (!allowPlaintext) {
+      throw new Error(
+        `Secure auth storage is not supported on platform "${platform}". ` +
+          `Set TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to use an unencrypted file at ${AUTH_INFO_PATH} instead.`
+      );
+    }
     return createPlaintextPersistence();
+  } catch (err) {
+    if (allowPlaintext) {
+      console.error(
+        "Could not load or use native secure storage, falling back to plaintext file:",
+        err
+      );
+      return createPlaintextPersistence();
+    }
+    throw new Error(
+      "Could not load native secure storage module. Set " +
+        "TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to use an unencrypted file instead.\n\n" +
+        "Original error: " +
+        String(err)
+    );
   }
 }
 
