@@ -65,8 +65,7 @@ async function createCachePersistence() {
       if (allowPlaintext) {
         console.error(
           "Warning: libsecret unavailable, falling back to unencrypted " +
-            "token cache. Set TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to " +
-            "suppress this warning in environments without a keyring."
+            "token cache because TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true."
         );
         return await FilePersistence.create(CACHE_PATH);
       }
