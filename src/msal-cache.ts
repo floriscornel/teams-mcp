@@ -19,7 +19,8 @@ import {
 const CACHE_PATH = join(homedir(), ".teams-mcp-token-cache.json");
 
 /**
- * Creates the appropriate OS-native persistence backend and wraps it in
+ * Creates the OS-native persistence used for the token cache (shared by
+ * createCachePlugin and clearTokenCache). Returns a backend suitable for
  * PersistenceCachePlugin, which implements the ICachePlugin interface that
  * PublicClientApplication expects.
  *
@@ -33,7 +34,6 @@ const CACHE_PATH = join(homedir(), ".teams-mcp-token-cache.json");
  *             Set TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to fall back to an
  *             unencrypted file when libsecret is unavailable.
  */
-/** Creates the OS-native persistence used for the token cache (shared by createCachePlugin and clearTokenCache). */
 async function createCachePersistence() {
   const platform = process.platform;
 
