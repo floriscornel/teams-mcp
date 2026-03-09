@@ -34,10 +34,7 @@ const CACHE_PATH = join(homedir(), ".teams-mcp-token-cache.json");
  *             unencrypted file when libsecret is unavailable.
  */
 /** Creates the OS-native persistence used for the token cache (shared by createCachePlugin and clearTokenCache). */
-async function createCachePersistence(): Promise<
-  Awaited<ReturnType<typeof KeychainPersistence.create>> &
-    { delete: () => Promise<void> }
-> {
+async function createCachePersistence() {
   const platform = process.platform;
 
   if (platform === "darwin") {
@@ -84,6 +81,14 @@ async function createCachePersistence(): Promise<
     }
   }
 
+  const allowPlaintext =
+    process.env.TEAMS_MCP_ALLOW_PLAINTEXT_CACHE === "true";
+  if (!allowPlaintext) {
+    throw new Error(
+      `Secure token storage is not supported on platform "${platform}". ` +
+        `Set TEAMS_MCP_ALLOW_PLAINTEXT_CACHE=true to use an unencrypted file at ${CACHE_PATH} instead.`
+    );
+  }
   console.error(
     `Warning: Secure token storage is not supported on platform "${platform}". ` +
       "Tokens will be stored in an unencrypted file at " +
@@ -97,6 +102,16 @@ export async function createCachePlugin(): Promise<ICachePlugin> {
   return new PersistenceCachePlugin(persistence);
 }
 
+/** True if the error indicates "nothing stored" / "not found" and can be ignored on clear. */
+function isNoCacheToDeleteError(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException).code;
+  const message = err instanceof Error ? err.message : String(err);
+  if (code === "ENOENT") return true;
+  return /not found|no such file|does not exist|no entry|could not find/i.test(
+    message
+  );
+}
+
 /**
  * Clears the token cache from OS-native storage (Keychain, DPAPI, or libsecret).
  * Call this on logout so credentials are fully removed.
@@ -106,7 +121,10 @@ export async function clearTokenCache(): Promise<void> {
     const persistence = await createCachePersistence();
     await persistence.delete();
   } catch (err) {
-    // Ignore if nothing was stored (e.g. first run or already logged out)
+    if (isNoCacheToDeleteError(err)) {
+      return; // Nothing was stored (e.g. first run or already logged out)
+    }
+    throw err;
   }
 }
 

@@ -50,7 +50,12 @@ async function readAuthInfo(): Promise<Record<string, unknown> | undefined> {
     data = await fs.readFile(LEGACY_AUTH_INFO_PATH, "utf8");
     const parsed = JSON.parse(data) as Record<string, unknown>;
     await writeAuthInfoSecure(JSON.stringify(parsed, null, 2));
-    await fs.unlink(LEGACY_AUTH_INFO_PATH).catch(() => {});
+    await fs.unlink(LEGACY_AUTH_INFO_PATH).catch((err) => {
+      console.warn(
+        `Failed to remove legacy auth file ${LEGACY_AUTH_INFO_PATH}: ${err}`
+      );
+      throw err;
+    });
     return parsed;
   } catch {
     return undefined;
@@ -132,7 +137,10 @@ async function authenticate(readOnly: boolean) {
 async function checkAuth() {
   try {
     const authInfo = await readAuthInfo();
-    if (!authInfo?.authenticated || !authInfo?.clientId) return false;
+    if (!authInfo?.authenticated || !authInfo?.clientId) {
+      console.log("❌ No authentication found");
+      return false;
+    }
 
     if (authInfo.authenticated && authInfo.clientId) {
       console.log("✅ Authentication found");
@@ -155,8 +163,9 @@ async function checkAuth() {
       }
 
       // Check if we have expiration info
-      if (authInfo.expiresAt) {
-        const expiresAt = new Date(authInfo.expiresAt);
+      const expiresAtVal = authInfo.expiresAt;
+      if (expiresAtVal != null && (typeof expiresAtVal === "string" || typeof expiresAtVal === "number" || expiresAtVal instanceof Date)) {
+        const expiresAt = new Date(expiresAtVal);
         const now = new Date();
 
         if (expiresAt > now) {

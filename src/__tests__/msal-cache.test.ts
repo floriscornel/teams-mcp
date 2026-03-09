@@ -82,7 +82,7 @@ describe("MSAL Cache Plugin", () => {
         },
       } as unknown as TokenCacheContext;
 
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
       await cachePlugin.beforeCacheAccess(cacheContext);
 
@@ -106,7 +106,7 @@ describe("MSAL Cache Plugin", () => {
         },
       } as unknown as TokenCacheContext;
 
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
       await cachePlugin.beforeCacheAccess(cacheContext);
 
@@ -169,7 +169,7 @@ describe("MSAL Cache Plugin", () => {
         },
       } as unknown as TokenCacheContext;
 
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
       await cachePlugin.afterCacheAccess(cacheContext);
 
