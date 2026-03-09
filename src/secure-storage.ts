@@ -31,8 +31,11 @@ async function createPlaintextPersistence(): Promise<PersistenceLike> {
       try {
         await fs.unlink(AUTH_INFO_PATH);
         return true;
-      } catch {
-        return false;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          return false;
+        }
+        throw err;
       }
     },
   };
