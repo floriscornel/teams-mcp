@@ -36,52 +36,63 @@ export function registerSearchTools(
   graphService: GraphService,
   _readOnly: boolean
 ) {
-  server.tool(
+  server.registerTool(
     "search_messages",
-    [
-      "Search for messages across all Microsoft Teams channels and chats using the Microsoft Search API.",
-      "The query string supports KQL (Keyword Query Language) syntax for advanced filtering:",
-      "  from:<name>              — messages sent by a person (e.g. from:bob)",
-      "  to:<name>                — messages sent to a person",
-      "  mentions:<userId>        — messages that mention a specific user ID (without dashes)",
-      "  IsMentioned:true         — messages that mention the current user",
-      "  hasAttachment:true|false — filter by attachment presence",
-      "  IsRead:true|false        — filter by read status",
-      "  sent>=YYYY-MM-DD         — messages sent on or after a date",
-      "  sent<=YYYY-MM-DD         — messages sent on or before a date",
-      "Examples:",
-      '  "quarterly report" from:alice sent>=2025-01-01',
-      "  hasAttachment:true from:bob",
-      "  project update sent>=2025-02-01",
-      "Use get_chat_messages or get_channel_messages for browsing a specific conversation.",
-    ].join("\n"),
     {
-      query: z.string().describe("Search query string. Supports KQL syntax (see tool description)"),
-      from: z
-        .number()
-        .min(0)
-        .optional()
-        .default(0)
-        .describe("Offset for pagination (0-based). Use with size to paginate through results"),
-      size: z
-        .number()
-        .min(1)
-        .max(100)
-        .optional()
-        .default(25)
-        .describe("Number of results to return (max 100)"),
-      enableTopResults: z
-        .boolean()
-        .optional()
-        .default(true)
-        .describe("When true, results are ranked by relevance. When false, results are unranked"),
-      contentFormat: z
-        .enum(["raw", "markdown"])
-        .optional()
-        .default("markdown")
-        .describe(
-          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
-        ),
+      title: "Search Messages",
+      description: [
+        "Search for messages across all Microsoft Teams channels and chats using the Microsoft Search API.",
+        "The query string supports KQL (Keyword Query Language) syntax for advanced filtering:",
+        "  from:<name>              — messages sent by a person (e.g. from:bob)",
+        "  to:<name>                — messages sent to a person",
+        "  mentions:<userId>        — messages that mention a specific user ID (without dashes)",
+        "  IsMentioned:true         — messages that mention the current user",
+        "  hasAttachment:true|false — filter by attachment presence",
+        "  IsRead:true|false        — filter by read status",
+        "  sent>=YYYY-MM-DD         — messages sent on or after a date",
+        "  sent<=YYYY-MM-DD         — messages sent on or before a date",
+        "Examples:",
+        '  "quarterly report" from:alice sent>=2025-01-01',
+        "  hasAttachment:true from:bob",
+        "  project update sent>=2025-02-01",
+        "Use get_chat_messages or get_channel_messages for browsing a specific conversation.",
+      ].join("\n"),
+      inputSchema: {
+        query: z
+          .string()
+          .describe("Search query string. Supports KQL syntax (see tool description)"),
+        from: z
+          .number()
+          .min(0)
+          .optional()
+          .default(0)
+          .describe("Offset for pagination (0-based). Use with size to paginate through results"),
+        size: z
+          .number()
+          .min(1)
+          .max(100)
+          .optional()
+          .default(25)
+          .describe("Number of results to return (max 100)"),
+        enableTopResults: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe("When true, results are ranked by relevance. When false, results are unranked"),
+        contentFormat: z
+          .enum(["raw", "markdown"])
+          .optional()
+          .default("markdown")
+          .describe(
+            'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ query, from, size, enableTopResults, contentFormat }) => {
       try {
@@ -134,31 +145,41 @@ export function registerSearchTools(
     }
   );
 
-  server.tool(
+  server.registerTool(
     "get_my_mentions",
-    "Find recent messages where the current user was @mentioned across all Teams channels and chats.",
     {
-      hours: z
-        .number()
-        .min(1)
-        .max(168)
-        .optional()
-        .default(24)
-        .describe("Look back this many hours (max 168 = 1 week)"),
-      size: z
-        .number()
-        .min(1)
-        .max(100)
-        .optional()
-        .default(25)
-        .describe("Maximum number of mentions to return"),
-      contentFormat: z
-        .enum(["raw", "markdown"])
-        .optional()
-        .default("markdown")
-        .describe(
-          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
-        ),
+      title: "Get My Mentions",
+      description:
+        "Find recent messages where the current user was @mentioned across all Teams channels and chats.",
+      inputSchema: {
+        hours: z
+          .number()
+          .min(1)
+          .max(168)
+          .optional()
+          .default(24)
+          .describe("Look back this many hours (max 168 = 1 week)"),
+        size: z
+          .number()
+          .min(1)
+          .max(100)
+          .optional()
+          .default(25)
+          .describe("Maximum number of mentions to return"),
+        contentFormat: z
+          .enum(["raw", "markdown"])
+          .optional()
+          .default("markdown")
+          .describe(
+            'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ hours, size, contentFormat }) => {
       try {
