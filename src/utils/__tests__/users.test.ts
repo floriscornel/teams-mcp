@@ -1,5 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphService } from "../../services/graph.js";
+import type {
+  ChannelMention,
+  ChannelMentionMapping,
+  UserMention,
+  UserMentionMapping,
+} from "../../types/mentions.js";
+import {
+  isUserMentionMapping,
+  isChannelMentionMapping,
+  convertMentionInputsToMappings,
+} from "../../types/mentions.js";
 import {
   getUserByEmail,
   getUserById,
@@ -285,6 +296,249 @@ describe("User Utilities", () => {
 
       expect(result.content).toBe(html);
       expect(result.mentions).toEqual([]);
+    });
+
+    describe("channel mentions", () => {
+      it("should process single channel mention", () => {
+        const html = "<p>Attention @General channel</p>";
+        const mappings: ChannelMentionMapping[] = [
+          {
+            mention: "General",
+            channelId: "19:abc123@thread.tacv2",
+            displayName: "General",
+          },
+        ];
+
+        const result = processMentionsInHtml(html, mappings);
+
+        expect(result.content).toBe('<p>Attention <at id="0">General</at> channel</p>');
+        expect(result.mentions).toHaveLength(1);
+
+        const mention = result.mentions[0] as ChannelMention;
+        expect(mention.id).toBe(0);
+        expect(mention.mentionText).toBe("General");
+        expect(mention.mentioned.conversation).toBeDefined();
+        expect(mention.mentioned.conversation.id).toBe("19:abc123@thread.tacv2");
+        expect(mention.mentioned.conversation.displayName).toBe("General");
+        expect(mention.mentioned.conversation.conversationIdentityType).toBe("channel");
+      });
+
+      it("should process multiple channel mentions", () => {
+        const html = "<p>Check @General and @Engineering channels</p>";
+        const mappings: ChannelMentionMapping[] = [
+          {
+            mention: "General",
+            channelId: "19:general@thread.tacv2",
+            displayName: "General",
+          },
+          {
+            mention: "Engineering",
+            channelId: "19:engineering@thread.tacv2",
+            displayName: "Engineering",
+          },
+        ];
+
+        const result = processMentionsInHtml(html, mappings);
+
+        expect(result.content).toBe(
+          '<p>Check <at id="0">General</at> and <at id="1">Engineering</at> channels</p>'
+        );
+        expect(result.mentions).toHaveLength(2);
+      });
+
+      it("should handle quoted channel mentions", () => {
+        const html = '<p>Check @"Product Team" channel</p>';
+        const mappings: ChannelMentionMapping[] = [
+          {
+            mention: "Product Team",
+            channelId: "19:product@thread.tacv2",
+            displayName: "Product Team",
+          },
+        ];
+
+        const result = processMentionsInHtml(html, mappings);
+
+        expect(result.content).toBe('<p>Check <at id="0">Product Team</at> channel</p>');
+      });
+    });
+
+    describe("mixed user and channel mentions", () => {
+      it("should process both user and channel mentions together", () => {
+        const html = "<p>@General - @John Doe will present the update</p>";
+        const mappings = [
+          {
+            mention: "General",
+            channelId: "19:abc@thread.tacv2",
+            displayName: "General",
+          } as ChannelMentionMapping,
+          {
+            mention: "John Doe",
+            userId: "user-123",
+            displayName: "John Doe",
+          } as UserMentionMapping,
+        ];
+
+        const result = processMentionsInHtml(html, mappings);
+
+        expect(result.content).toBe(
+          '<p><at id="0">General</at> - <at id="1">John Doe</at> will present the update</p>'
+        );
+        expect(result.mentions).toHaveLength(2);
+
+        // First mention should be a channel mention
+        const channelMention = result.mentions[0] as ChannelMention;
+        expect(channelMention.mentioned.conversation).toBeDefined();
+        expect(channelMention.mentioned.conversation.conversationIdentityType).toBe("channel");
+
+        // Second mention should be a user mention
+        const userMention = result.mentions[1] as UserMention;
+        expect(userMention.mentioned.user).toBeDefined();
+        expect(userMention.mentioned.user.id).toBe("user-123");
+      });
+
+      it("should assign sequential IDs to mixed mentions", () => {
+        const html = "<p>@alice @General @bob @Engineering</p>";
+        const mappings = [
+          { mention: "alice", userId: "u1", displayName: "Alice" } as UserMentionMapping,
+          { mention: "General", channelId: "c1", displayName: "General" } as ChannelMentionMapping,
+          { mention: "bob", userId: "u2", displayName: "Bob" } as UserMentionMapping,
+          {
+            mention: "Engineering",
+            channelId: "c2",
+            displayName: "Engineering",
+          } as ChannelMentionMapping,
+        ];
+
+        const result = processMentionsInHtml(html, mappings);
+
+        expect(result.mentions[0].id).toBe(0);
+        expect(result.mentions[1].id).toBe(1);
+        expect(result.mentions[2].id).toBe(2);
+        expect(result.mentions[3].id).toBe(3);
+      });
+    });
+
+    describe("edge cases", () => {
+      it("should handle special characters in mention text", () => {
+        const html = "<p>Check @Dev.Team channel</p>";
+        const mappings: ChannelMentionMapping[] = [
+          {
+            mention: "Dev.Team",
+            channelId: "19:devteam@thread.tacv2",
+            displayName: "Dev.Team",
+          },
+        ];
+
+        const result = processMentionsInHtml(html, mappings);
+
+        expect(result.content).toBe('<p>Check <at id="0">Dev.Team</at> channel</p>');
+      });
+
+      it("should handle same mention appearing multiple times", () => {
+        const html = "<p>@General is great. I love @General!</p>";
+        const mappings: ChannelMentionMapping[] = [
+          {
+            mention: "General",
+            channelId: "19:general@thread.tacv2",
+            displayName: "General",
+          },
+        ];
+
+        const result = processMentionsInHtml(html, mappings);
+
+        expect(result.content).toBe(
+          '<p><at id="0">General</at> is great. I love <at id="0">General</at>!</p>'
+        );
+        // Only one mention object in the array even though it appears twice
+        expect(result.mentions).toHaveLength(1);
+      });
+    });
+  });
+
+  describe("Type Guards", () => {
+    describe("isUserMentionMapping", () => {
+      it("should return true for user mention mappings", () => {
+        const mapping: UserMentionMapping = {
+          mention: "John",
+          userId: "user-123",
+          displayName: "John Doe",
+        };
+        expect(isUserMentionMapping(mapping)).toBe(true);
+      });
+
+      it("should return false for channel mention mappings", () => {
+        const mapping: ChannelMentionMapping = {
+          mention: "General",
+          channelId: "19:abc@thread.tacv2",
+          displayName: "General",
+        };
+        expect(isUserMentionMapping(mapping)).toBe(false);
+      });
+    });
+
+    describe("isChannelMentionMapping", () => {
+      it("should return true for channel mention mappings", () => {
+        const mapping: ChannelMentionMapping = {
+          mention: "General",
+          channelId: "19:abc@thread.tacv2",
+          displayName: "General",
+        };
+        expect(isChannelMentionMapping(mapping)).toBe(true);
+      });
+
+      it("should return false for user mention mappings", () => {
+        const mapping: UserMentionMapping = {
+          mention: "John",
+          userId: "user-123",
+          displayName: "John Doe",
+        };
+        expect(isChannelMentionMapping(mapping)).toBe(false);
+      });
+    });
+  });
+
+  describe("convertMentionInputsToMappings", () => {
+    it("should convert user mention inputs to mappings", () => {
+      const inputs = [{ mention: "John", userId: "user-123" }];
+      const result = convertMentionInputsToMappings(inputs);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        mention: "John",
+        userId: "user-123",
+        displayName: "John",
+      });
+    });
+
+    it("should convert channel mention inputs to mappings", () => {
+      const inputs = [{ mention: "General", channelId: "19:abc@thread.tacv2" }];
+      const result = convertMentionInputsToMappings(inputs);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        mention: "General",
+        channelId: "19:abc@thread.tacv2",
+        displayName: "General",
+      });
+    });
+
+    it("should convert mixed mention inputs to mappings", () => {
+      const inputs = [
+        { mention: "John", userId: "user-123" },
+        { mention: "General", channelId: "19:abc@thread.tacv2" },
+      ];
+      const result = convertMentionInputsToMappings(inputs);
+
+      expect(result).toHaveLength(2);
+      expect(isUserMentionMapping(result[0])).toBe(true);
+      expect(isChannelMentionMapping(result[1])).toBe(true);
+    });
+
+    it("should throw error for invalid mention input (neither userId nor channelId)", () => {
+      const inputs = [{ mention: "Invalid" }];
+      expect(() => convertMentionInputsToMappings(inputs)).toThrow(
+        'Invalid mention: "Invalid" must have either userId or channelId'
+      );
     });
   });
 });

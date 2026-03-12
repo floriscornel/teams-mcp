@@ -12,6 +12,7 @@ import type {
   Team,
   TeamSummary,
 } from "../types/graph.js";
+import type { GraphMention, MentionMapping } from "../types/mentions.js";
 import {
   extractAttachmentSummaries,
   type ImageAttachment,
@@ -29,6 +30,56 @@ import {
 import { formatMessageContent } from "../utils/html-to-markdown.js";
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml, searchUsers, type UserInfo } from "../utils/users.js";
+
+/**
+ * Validates channel ID format and logs a warning if it doesn't match expected Teams format.
+ * Teams channel IDs typically follow the pattern: 19:xxx@thread.tacv2
+ */
+function validateChannelIdFormat(channelId: string, mentionText: string): void {
+  const channelIdPattern = /^19:[a-zA-Z0-9_-]+@thread\.tacv2$/;
+  if (!channelIdPattern.test(channelId)) {
+    console.warn(
+      `Channel mention "${mentionText}": Channel ID "${channelId}" may not be in the expected format. ` +
+        `Expected format: "19:xxx@thread.tacv2". The mention may not work correctly.`
+    );
+  }
+}
+
+/**
+ * Shared Zod schema for mentions that supports both user and channel mentions.
+ * Each mention must have either userId (for user mentions) OR channelId (for channel mentions), not both.
+ */
+const mentionsSchema = z
+  .array(
+    z.object({
+      mention: z
+        .string()
+        .describe("The @mention text as it appears in the message (e.g., 'John Doe' or 'General')"),
+      userId: z
+        .string()
+        .optional()
+        .describe("Azure AD User ID for user mentions - mutually exclusive with channelId"),
+      channelId: z
+        .string()
+        .optional()
+        .describe("Channel ID for channel mentions (e.g., '19:abc123@thread.tacv2') - mutually exclusive with userId"),
+    })
+  )
+  .refine(
+    (mentions) =>
+      mentions.every((m) => {
+        const hasUserId = m.userId !== undefined && m.userId !== "";
+        const hasChannelId = m.channelId !== undefined && m.channelId !== "";
+        return (hasUserId && !hasChannelId) || (!hasUserId && hasChannelId);
+      }),
+    {
+      message:
+        "Invalid mention configuration: Each mention must specify exactly one of 'userId' (for user mentions) or 'channelId' (for channel mentions). " +
+        "Found mention with both or neither. Check that each mention in the array has either userId OR channelId, not both and not neither.",
+    }
+  )
+  .optional()
+  .describe("Array of mentions - each must specify either userId (for user mentions) or channelId (for channel mentions)");
 
 /**
  * Registers all Teams-related MCP tools on the given server.
@@ -260,17 +311,7 @@ export function registerTeamsTools(
           .enum(["text", "markdown"])
           .optional()
           .describe("Message format (text or markdown)"),
-        mentions: z
-          .array(
-            z.object({
-              mention: z
-                .string()
-                .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
-              userId: z.string().describe("Azure AD User ID of the mentioned user"),
-            })
-          )
-          .optional()
-          .describe("Array of @mentions to include in the message"),
+        mentions: mentionsSchema,
         imageUrl: z.string().optional().describe("URL of an image to attach to the message"),
         imageData: z.string().optional().describe("Base64 encoded image data to attach"),
         imageContentType: z
@@ -306,30 +347,39 @@ export function registerTeamsTools(
             contentType = "text";
           }
 
-          // Process @mentions if provided
-          const mentionMappings: Array<{ mention: string; userId: string; displayName: string }> =
-            [];
+          // Process @mentions if provided (supports both user and channel mentions)
+          const mentionMappings: MentionMapping[] = [];
           if (mentions && mentions.length > 0) {
             // Convert provided mentions to mappings with display names
             for (const mention of mentions) {
-              try {
-                // Get user info to get display name
-                const userResponse = await client
-                  .api(`/users/${mention.userId}`)
-                  .select("displayName")
-                  .get();
+              if (mention.userId) {
+                // User mention - look up display name
+                try {
+                  const userResponse = await client
+                    .api(`/users/${mention.userId}`)
+                    .select("displayName")
+                    .get();
+                  mentionMappings.push({
+                    mention: mention.mention,
+                    userId: mention.userId,
+                    displayName: userResponse.displayName || mention.mention,
+                  });
+                } catch (_error) {
+                  console.warn(
+                    `Could not resolve user ${mention.userId}, using mention text as display name`
+                  );
+                  mentionMappings.push({
+                    mention: mention.mention,
+                    userId: mention.userId,
+                    displayName: mention.mention,
+                  });
+                }
+              } else if (mention.channelId) {
+                // Channel mention - validate format and use mention text as display name
+                validateChannelIdFormat(mention.channelId, mention.mention);
                 mentionMappings.push({
                   mention: mention.mention,
-                  userId: mention.userId,
-                  displayName: userResponse.displayName || mention.mention,
-                });
-              } catch (_error) {
-                console.warn(
-                  `Could not resolve user ${mention.userId}, using mention text as display name`
-                );
-                mentionMappings.push({
-                  mention: mention.mention,
-                  userId: mention.userId,
+                  channelId: mention.channelId,
                   displayName: mention.mention,
                 });
               }
@@ -337,11 +387,7 @@ export function registerTeamsTools(
           }
 
           // Process mentions in HTML content
-          let finalMentions: Array<{
-            id: number;
-            mentionText: string;
-            mentioned: { user: { id: string } };
-          }> = [];
+          let finalMentions: GraphMention[] = [];
           if (mentionMappings.length > 0) {
             const result = processMentionsInHtml(content, mentionMappings);
             content = result.content;
@@ -575,17 +621,7 @@ export function registerTeamsTools(
           .enum(["text", "markdown"])
           .optional()
           .describe("Message format (text or markdown)"),
-        mentions: z
-          .array(
-            z.object({
-              mention: z
-                .string()
-                .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
-              userId: z.string().describe("Azure AD User ID of the mentioned user"),
-            })
-          )
-          .optional()
-          .describe("Array of @mentions to include in the reply"),
+        mentions: mentionsSchema,
         imageUrl: z.string().optional().describe("URL of an image to attach to the reply"),
         imageData: z.string().optional().describe("Base64 encoded image data to attach"),
         imageContentType: z
@@ -622,30 +658,39 @@ export function registerTeamsTools(
             contentType = "text";
           }
 
-          // Process @mentions if provided
-          const mentionMappings: Array<{ mention: string; userId: string; displayName: string }> =
-            [];
+          // Process @mentions if provided (supports both user and channel mentions)
+          const mentionMappings: MentionMapping[] = [];
           if (mentions && mentions.length > 0) {
             // Convert provided mentions to mappings with display names
             for (const mention of mentions) {
-              try {
-                // Get user info to get display name
-                const userResponse = await client
-                  .api(`/users/${mention.userId}`)
-                  .select("displayName")
-                  .get();
+              if (mention.userId) {
+                // User mention - look up display name
+                try {
+                  const userResponse = await client
+                    .api(`/users/${mention.userId}`)
+                    .select("displayName")
+                    .get();
+                  mentionMappings.push({
+                    mention: mention.mention,
+                    userId: mention.userId,
+                    displayName: userResponse.displayName || mention.mention,
+                  });
+                } catch (_error) {
+                  console.warn(
+                    `Could not resolve user ${mention.userId}, using mention text as display name`
+                  );
+                  mentionMappings.push({
+                    mention: mention.mention,
+                    userId: mention.userId,
+                    displayName: mention.mention,
+                  });
+                }
+              } else if (mention.channelId) {
+                // Channel mention - validate format and use mention text as display name
+                validateChannelIdFormat(mention.channelId, mention.mention);
                 mentionMappings.push({
                   mention: mention.mention,
-                  userId: mention.userId,
-                  displayName: userResponse.displayName || mention.mention,
-                });
-              } catch (_error) {
-                console.warn(
-                  `Could not resolve user ${mention.userId}, using mention text as display name`
-                );
-                mentionMappings.push({
-                  mention: mention.mention,
-                  userId: mention.userId,
+                  channelId: mention.channelId,
                   displayName: mention.mention,
                 });
               }
@@ -653,11 +698,7 @@ export function registerTeamsTools(
           }
 
           // Process mentions in HTML content
-          let finalMentions: Array<{
-            id: number;
-            mentionText: string;
-            mentioned: { user: { id: string } };
-          }> = [];
+          let finalMentions: GraphMention[] = [];
           if (mentionMappings.length > 0) {
             const result = processMentionsInHtml(content, mentionMappings);
             content = result.content;
@@ -1217,8 +1258,7 @@ export function registerTeamsTools(
           }
 
           // Process @mentions if provided
-          const mentionMappings: Array<{ mention: string; userId: string; displayName: string }> =
-            [];
+          const mentionMappings: MentionMapping[] = [];
           if (mentions && mentions.length > 0) {
             for (const mention of mentions) {
               try {
@@ -1245,11 +1285,7 @@ export function registerTeamsTools(
           }
 
           // Process mentions in HTML content
-          let finalMentions: Array<{
-            id: number;
-            mentionText: string;
-            mentioned: { user: { id: string } };
-          }> = [];
+          let finalMentions: GraphMention[] = [];
           if (mentionMappings.length > 0) {
             const result = processMentionsInHtml(content, mentionMappings);
             content = result.content;
