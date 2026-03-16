@@ -640,7 +640,9 @@ export function registerChatTools(
           } as ConversationMember,
         ];
 
-        // Add other users as members
+        // Add other users
+        // For oneOnOne chats, all members must have "owner" role
+        const isOneOnOne = userEmails.length === 1;
         for (const email of userEmails) {
           const user = (await client.api(`/users/${email}`).get()) as User;
           members.push({
@@ -648,7 +650,7 @@ export function registerChatTools(
             user: {
               id: user?.id,
             },
-            roles: ["member"],
+            roles: [isOneOnOne ? "owner" : "member"],
           } as ConversationMember);
         }
 
