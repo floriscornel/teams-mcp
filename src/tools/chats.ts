@@ -655,11 +655,11 @@ export function registerChatTools(
         }
 
         const chatData: CreateChatPayload = {
-          chatType: userEmails.length === 1 ? "oneOnOne" : "group",
+          chatType: isOneOnOne ? "oneOnOne" : "group",
           members,
         };
 
-        if (topic && userEmails.length > 1) {
+        if (topic && !isOneOnOne) {
           chatData.topic = topic;
         }
 
