@@ -56,6 +56,7 @@ export interface FileUploadResult {
 
 /** Graph API response from a DriveItem upload (simple PUT or final chunk). */
 type DriveItemUploadResponse = {
+  id?: string;
   webUrl?: string;
   eTag?: string;
 };
@@ -111,7 +112,7 @@ async function simpleUpload(
   remotePath: string,
   fileBuffer: Buffer,
   mimeType: string
-): Promise<{ webUrl: string; eTag: string }> {
+): Promise<{ webUrl: string; eTag: string; id: string }> {
   const client = await graphService.getClient();
   const response = (await client
     .api(`/drives/${driveId}/items/${parentItemId}:/${remotePath}:/content`)
@@ -120,7 +121,7 @@ async function simpleUpload(
   if (!response?.webUrl || !response?.eTag) {
     throw new Error("Upload failed: response did not contain webUrl/eTag");
   }
-  return { webUrl: response.webUrl, eTag: response.eTag };
+  return { webUrl: response.webUrl, eTag: response.eTag, id: response.id ?? "" };
 }
 
 /**
@@ -133,7 +134,7 @@ async function uploadLargeFile(
   parentItemId: string,
   remotePath: string,
   fileBuffer: Buffer
-): Promise<{ webUrl: string; eTag: string }> {
+): Promise<{ webUrl: string; eTag: string; id: string }> {
   const client = await graphService.getClient();
 
   const session = (await client
@@ -187,7 +188,7 @@ async function uploadLargeFile(
   if (!finalResult?.webUrl || !finalResult?.eTag) {
     throw new Error("Upload failed: final response did not contain file metadata");
   }
-  return { webUrl: finalResult.webUrl, eTag: finalResult.eTag };
+  return { webUrl: finalResult.webUrl, eTag: finalResult.eTag, id: finalResult.id ?? "" };
 }
 
 /**
@@ -257,9 +258,38 @@ export async function uploadFileToChat(
       ? await simpleUpload(graphService, driveId, "root", remotePath, buffer, mimeType)
       : await uploadLargeFile(graphService, driveId, "root", remotePath, buffer);
 
+  const attachmentId = extractGuidFromETag(uploadResult.eTag);
+
+  // Create a sharing link and use its URL as contentUrl for the attachment.
+  // Per the Graph API docs, chat message file attachments require a sharing link URL —
+  // using the direct webUrl from the upload causes "permission denied" for recipients.
+  let contentUrl = uploadResult.webUrl;
+  if (uploadResult.id) {
+    try {
+      const linkResponse = await client
+        .api(`/drives/${driveId}/items/${uploadResult.id}/createLink`)
+        .post({ type: "view", scope: "organization" });
+      if (linkResponse?.link?.webUrl) {
+        contentUrl = linkResponse.link.webUrl;
+      }
+    } catch {
+      // Fallback: try "users" scope if "organization" is blocked by tenant policy
+      try {
+        const linkResponse = await client
+          .api(`/drives/${driveId}/items/${uploadResult.id}/createLink`)
+          .post({ type: "view", scope: "users" });
+        if (linkResponse?.link?.webUrl) {
+          contentUrl = linkResponse.link.webUrl;
+        }
+      } catch {
+        // Last resort: use the direct webUrl (may not work for recipients)
+      }
+    }
+  }
+
   return {
-    webUrl: uploadResult.webUrl,
-    attachmentId: extractGuidFromETag(uploadResult.eTag),
+    webUrl: contentUrl,
+    attachmentId,
     fileName,
     fileSize: size,
     mimeType,
