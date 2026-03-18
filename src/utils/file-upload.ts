@@ -72,6 +72,13 @@ type ChannelFilesFolderResponse = {
   parentReference?: { driveId?: string };
 };
 
+/** Graph API response from the createLink endpoint. */
+type CreateLinkResponse = {
+  link?: {
+    webUrl?: string;
+  };
+};
+
 /**
  * Detect MIME type from file extension.
  */
@@ -266,23 +273,31 @@ export async function uploadFileToChat(
   let contentUrl = uploadResult.webUrl;
   if (uploadResult.id) {
     try {
-      const linkResponse = await client
+      const linkResponse = (await client
         .api(`/drives/${driveId}/items/${uploadResult.id}/createLink`)
-        .post({ type: "view", scope: "organization" });
+        .post({ type: "view", scope: "organization" })) as CreateLinkResponse;
       if (linkResponse?.link?.webUrl) {
         contentUrl = linkResponse.link.webUrl;
       }
-    } catch {
+    } catch (orgErr: unknown) {
       // Fallback: try "users" scope if "organization" is blocked by tenant policy
+      console.error(
+        `[teams-mcp] createLink (organization) failed for item ${uploadResult.id}:`,
+        orgErr instanceof Error ? orgErr.message : orgErr
+      );
       try {
-        const linkResponse = await client
+        const linkResponse = (await client
           .api(`/drives/${driveId}/items/${uploadResult.id}/createLink`)
-          .post({ type: "view", scope: "users" });
+          .post({ type: "view", scope: "users" })) as CreateLinkResponse;
         if (linkResponse?.link?.webUrl) {
           contentUrl = linkResponse.link.webUrl;
         }
-      } catch {
+      } catch (usersErr: unknown) {
         // Last resort: use the direct webUrl (may not work for recipients)
+        console.error(
+          `[teams-mcp] createLink (users) also failed for item ${uploadResult.id}:`,
+          usersErr instanceof Error ? usersErr.message : usersErr
+        );
       }
     }
   }
