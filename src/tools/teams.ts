@@ -213,7 +213,6 @@ export function registerTeamsTools(
             (r: ChatMessageReaction): ReactionSummary => ({
               reactionType: r.reactionType,
               displayName: r.displayName,
-              user: r.user?.user?.displayName,
               createdDateTime: r.createdDateTime,
             })
           ),
@@ -534,7 +533,6 @@ export function registerTeamsTools(
             (r: ChatMessageReaction): ReactionSummary => ({
               reactionType: r.reactionType,
               displayName: r.displayName,
-              user: r.user?.user?.displayName,
               createdDateTime: r.createdDateTime,
             })
           ),

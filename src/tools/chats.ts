@@ -279,7 +279,6 @@ export function registerChatTools(
             (r: ChatMessageReaction): ReactionSummary => ({
               reactionType: r.reactionType,
               displayName: r.displayName,
-              user: r.user?.user?.displayName,
               createdDateTime: r.createdDateTime,
             })
           ),

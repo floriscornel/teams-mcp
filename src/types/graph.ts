@@ -98,7 +98,6 @@ export interface AttachmentSummary {
 export interface ReactionSummary {
   reactionType?: string | undefined;
   displayName?: NullableOption<string> | undefined;
-  user?: NullableOption<string> | undefined;
   createdDateTime?: string | undefined;
 }
 

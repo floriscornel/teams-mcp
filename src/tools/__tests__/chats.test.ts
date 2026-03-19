@@ -1190,13 +1190,11 @@ describe("Chat Tools", () => {
               reactionType: "like",
               displayName: "Like",
               createdDateTime: "2023-01-01T10:01:00Z",
-              user: { user: { displayName: "Alice" } },
             },
             {
               reactionType: "heart",
               displayName: "Heart",
               createdDateTime: "2023-01-01T10:02:00Z",
-              user: { user: { displayName: "Bob" } },
             },
           ],
         },
@@ -1214,13 +1212,11 @@ describe("Chat Tools", () => {
       expect(parsedResponse.messages[0].reactions[0]).toEqual({
         reactionType: "like",
         displayName: "Like",
-        user: "Alice",
         createdDateTime: "2023-01-01T10:01:00Z",
       });
       expect(parsedResponse.messages[0].reactions[1]).toEqual({
         reactionType: "heart",
         displayName: "Heart",
-        user: "Bob",
         createdDateTime: "2023-01-01T10:02:00Z",
       });
     });
