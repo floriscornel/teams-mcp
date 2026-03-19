@@ -6,6 +6,7 @@ import type {
   ChatMessageAttachment,
   ChatMessageImportance,
   ChatMessageInfo,
+  ChatMessageReaction,
   ChatType,
   ConversationMember,
   NullableOption,
@@ -24,6 +25,7 @@ export type {
   Channel,
   ChatMessage,
   ChatMessageAttachment,
+  ChatMessageReaction,
   ConversationMember,
   TeamsAppInstallation,
   ChatMessageInfo,
@@ -93,6 +95,12 @@ export interface AttachmentSummary {
   thumbnailUrl?: string | undefined;
 }
 
+export interface ReactionSummary {
+  reactionType?: string | undefined;
+  displayName?: NullableOption<string> | undefined;
+  createdDateTime?: string | undefined;
+}
+
 export interface MessageSummary {
   id?: string | undefined;
   content?: NullableOption<string> | undefined;
@@ -100,6 +108,7 @@ export interface MessageSummary {
   createdDateTime?: NullableOption<string> | undefined;
   importance?: ChatMessageImportance | undefined;
   attachments?: AttachmentSummary[] | undefined;
+  reactions?: ReactionSummary[] | undefined;
 }
 
 export interface MemberSummary {
