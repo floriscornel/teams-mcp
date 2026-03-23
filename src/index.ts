@@ -12,6 +12,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { cachePlugin } from "./msal-cache.js";
 import { FULL_SCOPES, GraphService, READ_ONLY_SCOPES } from "./services/graph.js";
+import { type TeamsMessage, TrouterClient } from "./services/trouter.js";
 import { registerAuthTools } from "./tools/auth.js";
 import { registerChatTools } from "./tools/chats.js";
 import { registerSearchTools } from "./tools/search.js";
@@ -175,8 +176,36 @@ async function logout() {
     // Ignore if file doesn't exist
   }
 
+  // Also clear Trouter/Skype MSAL cache
+  await TrouterClient.clearCache();
+
   console.log("✅ Successfully logged out");
   console.log("🔄 Run 'npx @floriscornel/teams-mcp@latest authenticate' to re-authenticate");
+}
+
+async function trouterLogin() {
+  const tenantId = process.env.TEAMS_TENANT_ID || "40c03819-ef57-4eef-b83f-e0ae7ce6bc2a";
+  const trouter = new TrouterClient(tenantId);
+
+  console.log("🔐 Trouter Authentication (for real-time Teams notifications)");
+  console.log("=".repeat(50));
+
+  try {
+    const message = await trouter.login();
+    console.log(`\n📱 ${message}`);
+    console.log("\n⏳ Waiting for you to complete authentication...");
+
+    await new Promise<void>((resolve) => {
+      trouter.on("authenticated", resolve);
+    });
+
+    console.log("\n✅ Trouter authentication successful!");
+    console.log("🔄 Real-time notifications will be available on next MCP server start.");
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`\n❌ Trouter authentication failed: ${errorMessage}`);
+    process.exit(1);
+  }
 }
 
 // MCP Server setup
@@ -225,10 +254,83 @@ async function startMcpServer(readOnly: boolean) {
   registerChatTools(server, graphService, readOnly);
   registerSearchTools(server, graphService, readOnly);
 
-  // Start server
+  // --- Trouter real-time notifications ---
+  const recentMessages: TeamsMessage[] = [];
+  const MAX_RECENT = 50;
+
+  // Resource: teams://messages/inbox
+  server.resource(
+    "teams-inbox",
+    "teams://messages/inbox",
+    {
+      description:
+        "Real-time Teams messages via Trouter WebSocket. Subscribe for push notifications.",
+    },
+    async (_uri) => ({
+      contents: [
+        {
+          uri: "teams://messages/inbox",
+          mimeType: "application/json",
+          text: JSON.stringify(recentMessages),
+        },
+      ],
+    })
+  );
+
+  // Patch capabilities to advertise resource subscriptions.
+  // Use `as any` because getCapabilities is private in the SDK.
+  const srv = server.server as any;
+  const origCapabilities = srv.getCapabilities.bind(srv);
+  srv.getCapabilities = () => {
+    const caps = origCapabilities();
+    if (caps.resources) {
+      caps.resources.subscribe = true;
+    }
+    return caps;
+  };
+
+  // Start server first so we can send notifications.
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(`Microsoft Graph MCP Server started${readOnly ? " (read-only mode)" : ""}`);
+
+  // Start Trouter client if auth is available.
+  const tenantId = process.env.TEAMS_TENANT_ID || "40c03819-ef57-4eef-b83f-e0ae7ce6bc2a";
+  const trouter = new TrouterClient(tenantId);
+
+  if (await trouter.hasAuth()) {
+    // Echo-suppression: track message IDs sent by this agent to avoid re-processing own messages.
+    const sentMessageIds = new Set<string>();
+    const SENT_ID_TTL_MS = 60_000; // expire tracked IDs after 60s
+
+    // Expose a way to track sent messages (called by send_chat_message / send_channel_message).
+    (server as any)._trackSentMessageId = (id: string) => {
+      sentMessageIds.add(id);
+      setTimeout(() => sentMessageIds.delete(id), SENT_ID_TTL_MS);
+    };
+
+    trouter.on("message", (msg: TeamsMessage) => {
+      // Suppress echoes of messages sent by this agent
+      if (sentMessageIds.has(msg.id)) {
+        sentMessageIds.delete(msg.id);
+        return;
+      }
+
+      recentMessages.unshift(msg);
+      if (recentMessages.length > MAX_RECENT) recentMessages.pop();
+      // Notify MCP subscribers that the inbox resource has changed.
+      server.server.sendResourceUpdated({ uri: "teams://messages/inbox" }).catch((error) => {
+        console.error("Failed to publish inbox update:", error);
+      });
+    });
+
+    trouter.start().catch((err) => {
+      console.error(`Trouter start error: ${err}`);
+    });
+    console.error("Trouter: starting real-time notifications");
+  } else {
+    console.error("Trouter: no Skype auth found. Run 'trouter-login' to authenticate.");
+  }
 }
 
 // Main function to handle both CLI and MCP server modes
@@ -250,6 +352,9 @@ async function main() {
     case "logout":
       await logout();
       return;
+    case "trouter-login":
+      await trouterLogin();
+      return;
     case "help":
     case "--help":
     case "-h":
@@ -263,6 +368,9 @@ async function main() {
         "  npx @floriscornel/teams-mcp@latest authenticate --read-only  # Authenticate with read-only scopes"
       );
       console.log(
+        "  npx @floriscornel/teams-mcp@latest trouter-login             # Authenticate for real-time notifications"
+      );
+      console.log(
         "  npx @floriscornel/teams-mcp@latest check                     # Check authentication status"
       );
       console.log(
@@ -273,8 +381,9 @@ async function main() {
       );
       console.log("");
       console.log("Environment variables:");
-      console.log("  TEAMS_MCP_READ_ONLY=true  # Start MCP server in read-only mode");
-      console.log("  AUTH_TOKEN=<jwt>          # Use a pre-existing access token");
+      console.log("  TEAMS_MCP_READ_ONLY=true    # Start MCP server in read-only mode");
+      console.log("  AUTH_TOKEN=<jwt>            # Use a pre-existing access token");
+      console.log("  TEAMS_TENANT_ID=<id>        # Azure AD tenant ID for Trouter auth");
       return;
     case undefined:
       // No command = start MCP server

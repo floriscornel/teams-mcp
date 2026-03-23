@@ -74,6 +74,18 @@ export function registerChatTools(
             "No members",
         }));
 
+        // Add the self-chat (personal notes). Teams uses "48:notes" internally
+        // but it doesn't appear in Graph API. Include it so agents can watch it.
+        // Marked as notificationOnly — this ID cannot be used with Graph API endpoints
+        // like get_chat_messages or send_chat_message.
+        chatList.unshift({
+          id: "48:notes",
+          topic: "Personal notes (self-chat)",
+          chatType: "oneOnOne",
+          members: "Me (self)",
+          notificationOnly: true,
+        } as ChatSummary & { notificationOnly: boolean });
+
         return {
           content: [
             {
