@@ -40,10 +40,20 @@ export function registerChatTools(
   readOnly: boolean
 ) {
   // List user's chats
-  server.tool(
+  server.registerTool(
     "list_chats",
-    "List all recent chats (1:1 conversations and group chats) that the current user participates in. Returns chat topics, types, and participant information.",
-    {},
+    {
+      title: "List Chats",
+      description:
+        "List all recent chats (1:1 conversations and group chats) that the current user participates in. Returns chat topics, types, and participant information.",
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
     async () => {
       try {
         // Build query parameters
@@ -99,45 +109,55 @@ export function registerChatTools(
   );
 
   // Get chat messages with pagination support
-  server.tool(
+  server.registerTool(
     "get_chat_messages",
-    "Retrieve recent messages from a specific chat conversation. Returns message content, sender information, and timestamps.",
     {
-      chatId: z.string().describe("Chat ID (e.g. 19:meeting_Njhi..j@thread.v2"),
-      limit: z
-        .number()
-        .min(1)
-        .max(2000)
-        .optional()
-        .default(20)
-        .describe("Number of messages to retrieve (default: 20, max: 2000)"),
-      since: z.string().optional().describe("Get messages since this ISO datetime"),
-      until: z.string().optional().describe("Get messages until this ISO datetime"),
-      fromUser: z.string().optional().describe("Filter messages from specific user ID"),
-      orderBy: z
-        .enum(["createdDateTime", "lastModifiedDateTime"])
-        .optional()
-        .default("createdDateTime")
-        .describe("Sort order"),
-      descending: z
-        .boolean()
-        .optional()
-        .default(true)
-        .describe("Sort in descending order (newest first)"),
-      fetchAll: z
-        .boolean()
-        .optional()
-        .default(false)
-        .describe(
-          "Fetch all messages using pagination (up to limit). When true, follows @odata.nextLink to get more messages."
-        ),
-      contentFormat: z
-        .enum(["raw", "markdown"])
-        .optional()
-        .default("markdown")
-        .describe(
-          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
-        ),
+      title: "Get Chat Messages",
+      description:
+        "Retrieve recent messages from a specific chat conversation. Returns message content, sender information, and timestamps.",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID (e.g. 19:meeting_Njhi..j@thread.v2"),
+        limit: z
+          .number()
+          .min(1)
+          .max(2000)
+          .optional()
+          .default(20)
+          .describe("Number of messages to retrieve (default: 20, max: 2000)"),
+        since: z.string().optional().describe("Get messages since this ISO datetime"),
+        until: z.string().optional().describe("Get messages until this ISO datetime"),
+        fromUser: z.string().optional().describe("Filter messages from specific user ID"),
+        orderBy: z
+          .enum(["createdDateTime", "lastModifiedDateTime"])
+          .optional()
+          .default("createdDateTime")
+          .describe("Sort order"),
+        descending: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe("Sort in descending order (newest first)"),
+        fetchAll: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "Fetch all messages using pagination (up to limit). When true, follows @odata.nextLink to get more messages."
+          ),
+        contentFormat: z
+          .enum(["raw", "markdown"])
+          .optional()
+          .default("markdown")
+          .describe(
+            'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({
       chatId,
@@ -320,24 +340,34 @@ export function registerChatTools(
   );
 
   // Download hosted content (images) from a chat message
-  server.tool(
+  server.registerTool(
     "download_chat_hosted_content",
-    "Download hosted content (such as images) from a chat message. Returns the content as base64 encoded data along with metadata. Use this to retrieve images or other inline content embedded in chat messages.",
     {
-      chatId: z.string().describe("Chat ID"),
-      messageId: z.string().describe("Message ID containing the hosted content"),
-      hostedContentId: z
-        .string()
-        .optional()
-        .describe(
-          "Specific hosted content ID to download. If not provided, downloads all hosted contents from the message."
-        ),
-      savePath: z
-        .string()
-        .optional()
-        .describe(
-          "Optional file path to save the content. Supports UNC paths (e.g., \\\\wsl.localhost\\Ubuntu\\tmp\\file.png)."
-        ),
+      title: "Download Chat Hosted Content",
+      description:
+        "Download hosted content (such as images) from a chat message. Returns the content as base64 encoded data along with metadata. Use this to retrieve images or other inline content embedded in chat messages.",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID"),
+        messageId: z.string().describe("Message ID containing the hosted content"),
+        hostedContentId: z
+          .string()
+          .optional()
+          .describe(
+            "Specific hosted content ID to download. If not provided, downloads all hosted contents from the message."
+          ),
+        savePath: z
+          .string()
+          .optional()
+          .describe(
+            "Optional file path to save the content. Supports UNC paths (e.g., \\\\wsl.localhost\\Ubuntu\\tmp\\file.png)."
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ chatId, messageId, hostedContentId, savePath }) => {
       try {
@@ -497,25 +527,38 @@ export function registerChatTools(
   if (readOnly) return;
 
   // Send chat message
-  server.tool(
+  server.registerTool(
     "send_chat_message",
-    "Send a message to a specific chat conversation. Supports text and markdown formatting, mentions, and importance levels.",
     {
-      chatId: z.string().describe("Chat ID"),
-      message: z.string().describe("Message content"),
-      importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
-      format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
-      mentions: z
-        .array(
-          z.object({
-            mention: z
-              .string()
-              .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
-            userId: z.string().describe("Azure AD User ID of the mentioned user"),
-          })
-        )
-        .optional()
-        .describe("Array of @mentions to include in the message"),
+      title: "Send Chat Message",
+      description:
+        "Send a message to a specific chat conversation. Supports text and markdown formatting, mentions, and importance levels.",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID"),
+        message: z.string().describe("Message content"),
+        importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+        format: z
+          .enum(["text", "markdown"])
+          .optional()
+          .describe("Message format (text or markdown)"),
+        mentions: z
+          .array(
+            z.object({
+              mention: z
+                .string()
+                .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
+              userId: z.string().describe("Azure AD User ID of the mentioned user"),
+            })
+          )
+          .optional()
+          .describe("Array of @mentions to include in the message"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async ({ chatId, message, importance = "normal", format = "text", mentions }) => {
       try {
@@ -624,12 +667,22 @@ export function registerChatTools(
   );
 
   // Create new chat (1:1 or group)
-  server.tool(
+  server.registerTool(
     "create_chat",
-    "Create a new chat conversation. Can be a 1:1 chat (with one other user) or a group chat (with multiple users). Group chats can optionally have a topic.",
     {
-      userEmails: z.array(z.string()).describe("Array of user email addresses to add to chat"),
-      topic: z.string().optional().describe("Chat topic (for group chats)"),
+      title: "Create Chat",
+      description:
+        "Create a new chat conversation. Can be a 1:1 chat (with one other user) or a group chat (with multiple users). Group chats can optionally have a topic.",
+      inputSchema: {
+        userEmails: z.array(z.string()).describe("Array of user email addresses to add to chat"),
+        topic: z.string().optional().describe("Chat topic (for group chats)"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async ({ userEmails, topic }) => {
       try {
@@ -697,26 +750,39 @@ export function registerChatTools(
   );
 
   // Update/Edit a chat message
-  server.tool(
+  server.registerTool(
     "update_chat_message",
-    "Update (edit) a chat message that was previously sent. Only the message sender can update their own messages. Supports updating content with text or Markdown formatting, mentions, and importance levels.",
     {
-      chatId: z.string().describe("Chat ID"),
-      messageId: z.string().describe("Message ID to update"),
-      message: z.string().describe("New message content"),
-      importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
-      format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
-      mentions: z
-        .array(
-          z.object({
-            mention: z
-              .string()
-              .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
-            userId: z.string().describe("Azure AD User ID of the mentioned user"),
-          })
-        )
-        .optional()
-        .describe("Array of @mentions to include in the message"),
+      title: "Update Chat Message",
+      description:
+        "Update (edit) a chat message that was previously sent. Only the message sender can update their own messages. Supports updating content with text or Markdown formatting, mentions, and importance levels.",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID"),
+        messageId: z.string().describe("Message ID to update"),
+        message: z.string().describe("New message content"),
+        importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+        format: z
+          .enum(["text", "markdown"])
+          .optional()
+          .describe("Message format (text or markdown)"),
+        mentions: z
+          .array(
+            z.object({
+              mention: z
+                .string()
+                .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
+              userId: z.string().describe("Azure AD User ID of the mentioned user"),
+            })
+          )
+          .optional()
+          .describe("Array of @mentions to include in the message"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ chatId, messageId, message, importance, format = "text", mentions }) => {
       try {
@@ -830,12 +896,22 @@ export function registerChatTools(
   );
 
   // Soft delete a chat message
-  server.tool(
+  server.registerTool(
     "delete_chat_message",
-    "Soft delete a chat message that was previously sent. Only the message sender can delete their own messages. The message will be marked as deleted but can still be seen as '[This message has been deleted]'.",
     {
-      chatId: z.string().describe("Chat ID"),
-      messageId: z.string().describe("Message ID to delete"),
+      title: "Delete Chat Message",
+      description:
+        "Soft delete a chat message that was previously sent. Only the message sender can delete their own messages. The message will be marked as deleted but can still be seen as '[This message has been deleted]'.",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID"),
+        messageId: z.string().describe("Message ID to delete"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ chatId, messageId }) => {
       try {
@@ -874,17 +950,27 @@ export function registerChatTools(
   );
 
   // Set a reaction on a chat message
-  server.tool(
+  server.registerTool(
     "set_chat_message_reaction",
-    "Add a reaction to a message in a chat conversation. Supports Unicode emoji characters and named reactions (like, angry, sad, laugh, heart, surprised).",
     {
-      chatId: z.string().describe("Chat ID"),
-      messageId: z.string().describe("Message ID to react to"),
-      reactionType: z
-        .string()
-        .describe(
-          'Reaction type - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
-        ),
+      title: "Set Chat Message Reaction",
+      description:
+        "Add a reaction to a message in a chat conversation. Supports Unicode emoji characters and named reactions (like, angry, sad, laugh, heart, surprised).",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID"),
+        messageId: z.string().describe("Message ID to react to"),
+        reactionType: z
+          .string()
+          .describe(
+            'Reaction type - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
+          ),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async ({ chatId, messageId, reactionType }) => {
       try {
@@ -918,17 +1004,26 @@ export function registerChatTools(
   );
 
   // Unset a reaction on a chat message
-  server.tool(
+  server.registerTool(
     "unset_chat_message_reaction",
-    "Remove a reaction from a message in a chat conversation.",
     {
-      chatId: z.string().describe("Chat ID"),
-      messageId: z.string().describe("Message ID to remove reaction from"),
-      reactionType: z
-        .string()
-        .describe(
-          'Reaction type to remove - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
-        ),
+      title: "Unset Chat Message Reaction",
+      description: "Remove a reaction from a message in a chat conversation.",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID"),
+        messageId: z.string().describe("Message ID to remove reaction from"),
+        reactionType: z
+          .string()
+          .describe(
+            'Reaction type to remove - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
+          ),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ chatId, messageId, reactionType }) => {
       try {
@@ -962,19 +1057,32 @@ export function registerChatTools(
   );
 
   // Send a file to a chat
-  server.tool(
+  server.registerTool(
     "send_file_to_chat",
-    "Upload a local file and send it as a message to a Teams chat. Supports any file type (PDF, DOCX, ZIP, images, etc.). The file is uploaded to OneDrive and sent as a reference attachment.",
     {
-      chatId: z.string().describe("Chat ID"),
-      filePath: z.string().describe("Absolute path to the local file to upload"),
-      message: z.string().optional().describe("Optional message text to accompany the file"),
-      fileName: z
-        .string()
-        .optional()
-        .describe("Optional custom filename (defaults to the original file name)"),
-      format: z.enum(["text", "markdown"]).optional().describe("Message format (text or markdown)"),
-      importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+      title: "Send File to Chat",
+      description:
+        "Upload a local file and send it as a message to a Teams chat. Supports any file type (PDF, DOCX, ZIP, images, etc.). The file is uploaded to OneDrive and sent as a reference attachment.",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID"),
+        filePath: z.string().describe("Absolute path to the local file to upload"),
+        message: z.string().optional().describe("Optional message text to accompany the file"),
+        fileName: z
+          .string()
+          .optional()
+          .describe("Optional custom filename (defaults to the original file name)"),
+        format: z
+          .enum(["text", "markdown"])
+          .optional()
+          .describe("Message format (text or markdown)"),
+        importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async ({ chatId, filePath, message, fileName, format = "text", importance = "normal" }) => {
       try {

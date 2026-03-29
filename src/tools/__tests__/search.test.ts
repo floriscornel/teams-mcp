@@ -11,7 +11,7 @@ const mockGraphService = {
 
 // Mock the MCP server
 const mockServer = {
-  tool: vi.fn(),
+  registerTool: vi.fn(),
 } as unknown as McpServer;
 
 // Mock client responses
@@ -56,17 +56,21 @@ describe("Search Tools", () => {
     it("should register search_messages and get_my_mentions", () => {
       registerSearchTools(mockServer, mockGraphService, false);
 
-      expect(mockServer.tool).toHaveBeenCalledTimes(2);
-      expect(mockServer.tool).toHaveBeenCalledWith(
+      expect(mockServer.registerTool).toHaveBeenCalledTimes(2);
+      expect(mockServer.registerTool).toHaveBeenCalledWith(
         "search_messages",
-        expect.any(String),
-        expect.any(Object),
+        expect.objectContaining({
+          title: "Search Messages",
+          description: expect.any(String),
+        }),
         expect.any(Function)
       );
-      expect(mockServer.tool).toHaveBeenCalledWith(
+      expect(mockServer.registerTool).toHaveBeenCalledWith(
         "get_my_mentions",
-        expect.any(String),
-        expect.any(Object),
+        expect.objectContaining({
+          title: "Get My Mentions",
+          description: expect.any(String),
+        }),
         expect.any(Function)
       );
     });
@@ -126,9 +130,9 @@ describe("Search Tools", () => {
     beforeEach(() => {
       registerSearchTools(mockServer, mockGraphService, false);
       const call = vi
-        .mocked(mockServer.tool)
+        .mocked(mockServer.registerTool)
         .mock.calls.find(([name]) => name === "search_messages");
-      handler = call?.[3] as unknown as (args: any) => Promise<any>;
+      handler = call?.[2] as unknown as (args: any) => Promise<any>;
     });
 
     it("should send a single search request with provided parameters", async () => {
@@ -239,9 +243,9 @@ describe("Search Tools", () => {
     beforeEach(() => {
       registerSearchTools(mockServer, mockGraphService, false);
       const call = vi
-        .mocked(mockServer.tool)
+        .mocked(mockServer.registerTool)
         .mock.calls.find(([name]) => name === "get_my_mentions");
-      handler = call?.[3] as unknown as (args: any) => Promise<any>;
+      handler = call?.[2] as unknown as (args: any) => Promise<any>;
     });
 
     it("should query with IsMentioned:true and date filter", async () => {

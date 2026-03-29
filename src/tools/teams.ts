@@ -48,10 +48,20 @@ export function registerTeamsTools(
   readOnly: boolean
 ) {
   // List user's teams
-  server.tool(
+  server.registerTool(
     "list_teams",
-    "List all Microsoft Teams that the current user is a member of. Returns team names, descriptions, and IDs.",
-    {},
+    {
+      title: "List Teams",
+      description:
+        "List all Microsoft Teams that the current user is a member of. Returns team names, descriptions, and IDs.",
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
     async () => {
       try {
         const client = await graphService.getClient();
@@ -98,11 +108,21 @@ export function registerTeamsTools(
   );
 
   // List channels in a team
-  server.tool(
+  server.registerTool(
     "list_channels",
-    "List all channels in a specific Microsoft Team. Returns channel names, descriptions, types, and IDs for the specified team.",
     {
-      teamId: z.string().describe("Team ID"),
+      title: "List Channels",
+      description:
+        "List all channels in a specific Microsoft Team. Returns channel names, descriptions, types, and IDs for the specified team.",
+      inputSchema: {
+        teamId: z.string().describe("Team ID"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ teamId }) => {
       try {
@@ -152,26 +172,36 @@ export function registerTeamsTools(
   );
 
   // Get channel messages
-  server.tool(
+  server.registerTool(
     "get_channel_messages",
-    "Retrieve recent messages from a specific channel in a Microsoft Team. Returns message content, sender information, and timestamps.",
     {
-      teamId: z.string().describe("Team ID"),
-      channelId: z.string().describe("Channel ID"),
-      limit: z
-        .number()
-        .min(1)
-        .max(50)
-        .optional()
-        .default(20)
-        .describe("Number of messages to retrieve (default: 20)"),
-      contentFormat: z
-        .enum(["raw", "markdown"])
-        .optional()
-        .default("markdown")
-        .describe(
-          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
-        ),
+      title: "Get Channel Messages",
+      description:
+        "Retrieve recent messages from a specific channel in a Microsoft Team. Returns message content, sender information, and timestamps.",
+      inputSchema: {
+        teamId: z.string().describe("Team ID"),
+        channelId: z.string().describe("Channel ID"),
+        limit: z
+          .number()
+          .min(1)
+          .max(50)
+          .optional()
+          .default(20)
+          .describe("Number of messages to retrieve (default: 20)"),
+        contentFormat: z
+          .enum(["raw", "markdown"])
+          .optional()
+          .default("markdown")
+          .describe(
+            'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ teamId, channelId, limit, contentFormat }) => {
       try {
@@ -257,36 +287,49 @@ export function registerTeamsTools(
 
   // Send message to channel (write — skipped in read-only mode)
   if (!readOnly)
-    server.tool(
+    server.registerTool(
       "send_channel_message",
-      "Send a message to a specific channel in a Microsoft Team. Supports text and markdown formatting, mentions, and importance levels.",
       {
-        teamId: z.string().describe("Team ID"),
-        channelId: z.string().describe("Channel ID"),
-        message: z.string().describe("Message content"),
-        importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
-        format: z
-          .enum(["text", "markdown"])
-          .optional()
-          .describe("Message format (text or markdown)"),
-        mentions: z
-          .array(
-            z.object({
-              mention: z
-                .string()
-                .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
-              userId: z.string().describe("Azure AD User ID of the mentioned user"),
-            })
-          )
-          .optional()
-          .describe("Array of @mentions to include in the message"),
-        imageUrl: z.string().optional().describe("URL of an image to attach to the message"),
-        imageData: z.string().optional().describe("Base64 encoded image data to attach"),
-        imageContentType: z
-          .string()
-          .optional()
-          .describe("MIME type of the image (e.g., 'image/jpeg', 'image/png')"),
-        imageFileName: z.string().optional().describe("Name for the attached image file"),
+        title: "Send Channel Message",
+        description:
+          "Send a message to a specific channel in a Microsoft Team. Supports text and markdown formatting, mentions, and importance levels.",
+        inputSchema: {
+          teamId: z.string().describe("Team ID"),
+          channelId: z.string().describe("Channel ID"),
+          message: z.string().describe("Message content"),
+          importance: z
+            .enum(["normal", "high", "urgent"])
+            .optional()
+            .describe("Message importance"),
+          format: z
+            .enum(["text", "markdown"])
+            .optional()
+            .describe("Message format (text or markdown)"),
+          mentions: z
+            .array(
+              z.object({
+                mention: z
+                  .string()
+                  .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
+                userId: z.string().describe("Azure AD User ID of the mentioned user"),
+              })
+            )
+            .optional()
+            .describe("Array of @mentions to include in the message"),
+          imageUrl: z.string().optional().describe("URL of an image to attach to the message"),
+          imageData: z.string().optional().describe("Base64 encoded image data to attach"),
+          imageContentType: z
+            .string()
+            .optional()
+            .describe("MIME type of the image (e.g., 'image/jpeg', 'image/png')"),
+          imageFileName: z.string().optional().describe("Name for the attached image file"),
+        },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
       },
       async ({
         teamId,
@@ -470,27 +513,37 @@ export function registerTeamsTools(
     );
 
   // Get replies to a message in a channel
-  server.tool(
+  server.registerTool(
     "get_channel_message_replies",
-    "Get all replies to a specific message in a channel. Returns reply content, sender information, and timestamps.",
     {
-      teamId: z.string().describe("Team ID"),
-      channelId: z.string().describe("Channel ID"),
-      messageId: z.string().describe("Message ID to get replies for"),
-      limit: z
-        .number()
-        .min(1)
-        .max(50)
-        .optional()
-        .default(20)
-        .describe("Number of replies to retrieve (default: 20)"),
-      contentFormat: z
-        .enum(["raw", "markdown"])
-        .optional()
-        .default("markdown")
-        .describe(
-          'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
-        ),
+      title: "Get Channel Message Replies",
+      description:
+        "Get all replies to a specific message in a channel. Returns reply content, sender information, and timestamps.",
+      inputSchema: {
+        teamId: z.string().describe("Team ID"),
+        channelId: z.string().describe("Channel ID"),
+        messageId: z.string().describe("Message ID to get replies for"),
+        limit: z
+          .number()
+          .min(1)
+          .max(50)
+          .optional()
+          .default(20)
+          .describe("Number of replies to retrieve (default: 20)"),
+        contentFormat: z
+          .enum(["raw", "markdown"])
+          .optional()
+          .default("markdown")
+          .describe(
+            'Format for message content. "markdown" (default) converts Teams HTML to clean Markdown optimized for LLMs. "raw" returns original HTML from Graph API.'
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ teamId, channelId, messageId, limit, contentFormat }) => {
       try {
@@ -578,37 +631,50 @@ export function registerTeamsTools(
 
   // Reply to a message in a channel (write — skipped in read-only mode)
   if (!readOnly)
-    server.tool(
+    server.registerTool(
       "reply_to_channel_message",
-      "Reply to a specific message in a channel. Supports text and markdown formatting, mentions, and importance levels.",
       {
-        teamId: z.string().describe("Team ID"),
-        channelId: z.string().describe("Channel ID"),
-        messageId: z.string().describe("Message ID to reply to"),
-        message: z.string().describe("Reply content"),
-        importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
-        format: z
-          .enum(["text", "markdown"])
-          .optional()
-          .describe("Message format (text or markdown)"),
-        mentions: z
-          .array(
-            z.object({
-              mention: z
-                .string()
-                .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
-              userId: z.string().describe("Azure AD User ID of the mentioned user"),
-            })
-          )
-          .optional()
-          .describe("Array of @mentions to include in the reply"),
-        imageUrl: z.string().optional().describe("URL of an image to attach to the reply"),
-        imageData: z.string().optional().describe("Base64 encoded image data to attach"),
-        imageContentType: z
-          .string()
-          .optional()
-          .describe("MIME type of the image (e.g., 'image/jpeg', 'image/png')"),
-        imageFileName: z.string().optional().describe("Name for the attached image file"),
+        title: "Reply to Channel Message",
+        description:
+          "Reply to a specific message in a channel. Supports text and markdown formatting, mentions, and importance levels.",
+        inputSchema: {
+          teamId: z.string().describe("Team ID"),
+          channelId: z.string().describe("Channel ID"),
+          messageId: z.string().describe("Message ID to reply to"),
+          message: z.string().describe("Reply content"),
+          importance: z
+            .enum(["normal", "high", "urgent"])
+            .optional()
+            .describe("Message importance"),
+          format: z
+            .enum(["text", "markdown"])
+            .optional()
+            .describe("Message format (text or markdown)"),
+          mentions: z
+            .array(
+              z.object({
+                mention: z
+                  .string()
+                  .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
+                userId: z.string().describe("Azure AD User ID of the mentioned user"),
+              })
+            )
+            .optional()
+            .describe("Array of @mentions to include in the reply"),
+          imageUrl: z.string().optional().describe("URL of an image to attach to the reply"),
+          imageData: z.string().optional().describe("Base64 encoded image data to attach"),
+          imageContentType: z
+            .string()
+            .optional()
+            .describe("MIME type of the image (e.g., 'image/jpeg', 'image/png')"),
+          imageFileName: z.string().optional().describe("Name for the attached image file"),
+        },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
       },
       async ({
         teamId,
@@ -793,11 +859,21 @@ export function registerTeamsTools(
     );
 
   // List team members
-  server.tool(
+  server.registerTool(
     "list_team_members",
-    "List all members of a specific Microsoft Team. Returns member names, email addresses, roles, and IDs.",
     {
-      teamId: z.string().describe("Team ID"),
+      title: "List Team Members",
+      description:
+        "List all members of a specific Microsoft Team. Returns member names, email addresses, roles, and IDs.",
+      inputSchema: {
+        teamId: z.string().describe("Team ID"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ teamId }) => {
       try {
@@ -846,18 +922,28 @@ export function registerTeamsTools(
   );
 
   // Search users for @mentions
-  server.tool(
+  server.registerTool(
     "search_users_for_mentions",
-    "Search for users to mention in messages. Returns users with their display names, email addresses, and mention IDs.",
     {
-      query: z.string().describe("Search query (name or email)"),
-      limit: z
-        .number()
-        .min(1)
-        .max(50)
-        .optional()
-        .default(10)
-        .describe("Maximum number of results to return"),
+      title: "Search Users for Mentions",
+      description:
+        "Search for users to mention in messages. Returns users with their display names, email addresses, and mention IDs.",
+      inputSchema: {
+        query: z.string().describe("Search query (name or email)"),
+        limit: z
+          .number()
+          .min(1)
+          .max(50)
+          .optional()
+          .default(10)
+          .describe("Maximum number of results to return"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ query, limit }) => {
       try {
@@ -912,29 +998,39 @@ export function registerTeamsTools(
   );
 
   // Download hosted content (images) from a Teams message
-  server.tool(
+  server.registerTool(
     "download_message_hosted_content",
-    "Download hosted content (such as images) from a Teams channel message. Returns the content as base64 encoded data along with metadata. Use this to retrieve images or other inline content embedded in messages.",
     {
-      teamId: z.string().describe("Team ID"),
-      channelId: z.string().describe("Channel ID"),
-      messageId: z.string().describe("Message ID containing the hosted content"),
-      replyId: z
-        .string()
-        .optional()
-        .describe("Reply ID if downloading hosted content from a reply to a message (optional)"),
-      hostedContentId: z
-        .string()
-        .optional()
-        .describe(
-          "Specific hosted content ID to download. If not provided, downloads all hosted contents from the message."
-        ),
-      savePath: z
-        .string()
-        .optional()
-        .describe(
-          "Optional file path to save the content. Supports UNC paths (e.g., \\\\wsl.localhost\\Ubuntu\\tmp\\file.png)."
-        ),
+      title: "Download Message Hosted Content",
+      description:
+        "Download hosted content (such as images) from a Teams channel message. Returns the content as base64 encoded data along with metadata. Use this to retrieve images or other inline content embedded in messages.",
+      inputSchema: {
+        teamId: z.string().describe("Team ID"),
+        channelId: z.string().describe("Channel ID"),
+        messageId: z.string().describe("Message ID containing the hosted content"),
+        replyId: z
+          .string()
+          .optional()
+          .describe("Reply ID if downloading hosted content from a reply to a message (optional)"),
+        hostedContentId: z
+          .string()
+          .optional()
+          .describe(
+            "Specific hosted content ID to download. If not provided, downloads all hosted contents from the message."
+          ),
+        savePath: z
+          .string()
+          .optional()
+          .describe(
+            "Optional file path to save the content. Supports UNC paths (e.g., \\\\wsl.localhost\\Ubuntu\\tmp\\file.png)."
+          ),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ teamId, channelId, messageId, replyId, hostedContentId, savePath }) => {
       try {
@@ -1138,17 +1234,27 @@ export function registerTeamsTools(
 
   // Soft delete a channel message (write — skipped in read-only mode)
   if (!readOnly)
-    server.tool(
+    server.registerTool(
       "delete_channel_message",
-      "Soft delete a message in a channel. Only the message sender can delete their own messages. The message will be marked as deleted.",
       {
-        teamId: z.string().describe("Team ID"),
-        channelId: z.string().describe("Channel ID"),
-        messageId: z.string().describe("Message ID to delete"),
-        replyId: z
-          .string()
-          .optional()
-          .describe("Reply ID if deleting a reply to a message (optional)"),
+        title: "Delete Channel Message",
+        description:
+          "Soft delete a message in a channel. Only the message sender can delete their own messages. The message will be marked as deleted.",
+        inputSchema: {
+          teamId: z.string().describe("Team ID"),
+          channelId: z.string().describe("Channel ID"),
+          messageId: z.string().describe("Message ID to delete"),
+          replyId: z
+            .string()
+            .optional()
+            .describe("Reply ID if deleting a reply to a message (optional)"),
+        },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
       },
       async ({ teamId, channelId, messageId, replyId }) => {
         try {
@@ -1189,34 +1295,47 @@ export function registerTeamsTools(
 
   // Update/Edit a channel message (write — skipped in read-only mode)
   if (!readOnly)
-    server.tool(
+    server.registerTool(
       "update_channel_message",
-      "Update (edit) a message in a channel that was previously sent. Only the message sender can update their own messages.",
       {
-        teamId: z.string().describe("Team ID"),
-        channelId: z.string().describe("Channel ID"),
-        messageId: z.string().describe("Message ID to update"),
-        replyId: z
-          .string()
-          .optional()
-          .describe("Reply ID if updating a reply to a message (optional)"),
-        message: z.string().describe("New message content"),
-        importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
-        format: z
-          .enum(["text", "markdown"])
-          .optional()
-          .describe("Message format (text or markdown)"),
-        mentions: z
-          .array(
-            z.object({
-              mention: z
-                .string()
-                .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
-              userId: z.string().describe("Azure AD User ID of the mentioned user"),
-            })
-          )
-          .optional()
-          .describe("Array of @mentions to include in the message"),
+        title: "Update Channel Message",
+        description:
+          "Update (edit) a message in a channel that was previously sent. Only the message sender can update their own messages.",
+        inputSchema: {
+          teamId: z.string().describe("Team ID"),
+          channelId: z.string().describe("Channel ID"),
+          messageId: z.string().describe("Message ID to update"),
+          replyId: z
+            .string()
+            .optional()
+            .describe("Reply ID if updating a reply to a message (optional)"),
+          message: z.string().describe("New message content"),
+          importance: z
+            .enum(["normal", "high", "urgent"])
+            .optional()
+            .describe("Message importance"),
+          format: z
+            .enum(["text", "markdown"])
+            .optional()
+            .describe("Message format (text or markdown)"),
+          mentions: z
+            .array(
+              z.object({
+                mention: z
+                  .string()
+                  .describe("The @mention text (e.g., 'john.doe' or 'john.doe@company.com')"),
+                userId: z.string().describe("Azure AD User ID of the mentioned user"),
+              })
+            )
+            .optional()
+            .describe("Array of @mentions to include in the message"),
+        },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
       },
       async ({
         teamId,
@@ -1337,19 +1456,29 @@ export function registerTeamsTools(
 
   // Set a reaction on a channel message (write — skipped in read-only mode)
   if (!readOnly)
-    server.tool(
+    server.registerTool(
       "set_channel_message_reaction",
-      "Add a reaction to a message in a Teams channel. Supports Unicode emoji characters and named reactions (like, angry, sad, laugh, heart, surprised). Can also react to replies.",
       {
-        teamId: z.string().describe("Team ID"),
-        channelId: z.string().describe("Channel ID"),
-        messageId: z.string().describe("Message ID to react to"),
-        reactionType: z
-          .string()
-          .describe(
-            'Reaction type - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
-          ),
-        replyId: z.string().optional().describe("Reply ID if reacting to a reply (optional)"),
+        title: "Set Channel Message Reaction",
+        description:
+          "Add a reaction to a message in a Teams channel. Supports Unicode emoji characters and named reactions (like, angry, sad, laugh, heart, surprised). Can also react to replies.",
+        inputSchema: {
+          teamId: z.string().describe("Team ID"),
+          channelId: z.string().describe("Channel ID"),
+          messageId: z.string().describe("Message ID to react to"),
+          reactionType: z
+            .string()
+            .describe(
+              'Reaction type - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
+            ),
+          replyId: z.string().optional().describe("Reply ID if reacting to a reply (optional)"),
+        },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
       },
       async ({ teamId, channelId, messageId, reactionType, replyId }) => {
         try {
@@ -1389,22 +1518,32 @@ export function registerTeamsTools(
 
   // Unset a reaction on a channel message (write — skipped in read-only mode)
   if (!readOnly)
-    server.tool(
+    server.registerTool(
       "unset_channel_message_reaction",
-      "Remove a reaction from a message in a Teams channel. Can also remove reactions from replies.",
       {
-        teamId: z.string().describe("Team ID"),
-        channelId: z.string().describe("Channel ID"),
-        messageId: z.string().describe("Message ID to remove reaction from"),
-        reactionType: z
-          .string()
-          .describe(
-            'Reaction type to remove - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
-          ),
-        replyId: z
-          .string()
-          .optional()
-          .describe("Reply ID if removing reaction from a reply (optional)"),
+        title: "Unset Channel Message Reaction",
+        description:
+          "Remove a reaction from a message in a Teams channel. Can also remove reactions from replies.",
+        inputSchema: {
+          teamId: z.string().describe("Team ID"),
+          channelId: z.string().describe("Channel ID"),
+          messageId: z.string().describe("Message ID to remove reaction from"),
+          reactionType: z
+            .string()
+            .describe(
+              'Reaction type to remove - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
+            ),
+          replyId: z
+            .string()
+            .optional()
+            .describe("Reply ID if removing reaction from a reply (optional)"),
+        },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
       },
       async ({ teamId, channelId, messageId, reactionType, replyId }) => {
         try {
@@ -1444,29 +1583,42 @@ export function registerTeamsTools(
 
   // Send a file to a channel (write — skipped in read-only mode)
   if (!readOnly)
-    server.tool(
+    server.registerTool(
       "send_file_to_channel",
-      "Upload a local file and send it as a message to a Teams channel. Supports any file type (PDF, DOCX, ZIP, images, etc.). The file is uploaded to the channel's SharePoint folder and sent as a reference attachment. If messageId is provided, the file is sent as a reply to that message (thread).",
       {
-        teamId: z.string().describe("Team ID"),
-        channelId: z.string().describe("Channel ID"),
-        filePath: z.string().describe("Absolute path to the local file to upload"),
-        message: z.string().optional().describe("Optional message text to accompany the file"),
-        fileName: z
-          .string()
-          .optional()
-          .describe("Optional custom filename (defaults to the original file name)"),
-        format: z
-          .enum(["text", "markdown"])
-          .optional()
-          .describe("Message format (text or markdown)"),
-        importance: z.enum(["normal", "high", "urgent"]).optional().describe("Message importance"),
-        messageId: z
-          .string()
-          .optional()
-          .describe(
-            "Optional message ID to reply to. When provided, the file is sent as a reply in the message thread instead of a new message."
-          ),
+        title: "Send File to Channel",
+        description:
+          "Upload a local file and send it as a message to a Teams channel. Supports any file type (PDF, DOCX, ZIP, images, etc.). The file is uploaded to the channel's SharePoint folder and sent as a reference attachment. If messageId is provided, the file is sent as a reply to that message (thread).",
+        inputSchema: {
+          teamId: z.string().describe("Team ID"),
+          channelId: z.string().describe("Channel ID"),
+          filePath: z.string().describe("Absolute path to the local file to upload"),
+          message: z.string().optional().describe("Optional message text to accompany the file"),
+          fileName: z
+            .string()
+            .optional()
+            .describe("Optional custom filename (defaults to the original file name)"),
+          format: z
+            .enum(["text", "markdown"])
+            .optional()
+            .describe("Message format (text or markdown)"),
+          importance: z
+            .enum(["normal", "high", "urgent"])
+            .optional()
+            .describe("Message importance"),
+          messageId: z
+            .string()
+            .optional()
+            .describe(
+              "Optional message ID to reply to. When provided, the file is sent as a reply in the message thread instead of a new message."
+            ),
+        },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
       },
       async ({
         teamId,

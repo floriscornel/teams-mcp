@@ -82,10 +82,20 @@ describe("Teams Tools", () => {
     it("should register list_teams tool correctly", () => {
       registerTeamsTools(mockServer, mockGraphService, false);
 
-      expect(mockServer.tool).toHaveBeenCalledWith(
+      expect(mockServer.registerTool).toHaveBeenCalledWith(
         "list_teams",
-        "List all Microsoft Teams that the current user is a member of. Returns team names, descriptions, and IDs.",
-        {},
+        expect.objectContaining({
+          title: "List Teams",
+          description:
+            "List all Microsoft Teams that the current user is a member of. Returns team names, descriptions, and IDs.",
+          inputSchema: {},
+          annotations: expect.objectContaining({
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false,
+          }),
+        }),
         expect.any(Function)
       );
     });

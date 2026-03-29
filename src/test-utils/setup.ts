@@ -354,6 +354,15 @@ export function createMockMcpServer() {
     tool: vi.fn().mockImplementation((name, description, schema, handler) => {
       tools.set(name, { description, schema, handler });
     }),
+    registerTool: vi.fn().mockImplementation((name, config, handler) => {
+      tools.set(name, {
+        description: config.description,
+        schema: config.inputSchema,
+        handler,
+        title: config.title,
+        annotations: config.annotations,
+      });
+    }),
     connect: vi.fn(),
     getTool: (name: string) => tools.get(name),
     getAllTools: () => Array.from(tools.keys()),

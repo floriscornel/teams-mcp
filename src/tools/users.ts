@@ -9,10 +9,20 @@ export function registerUsersTools(
   _readOnly: boolean
 ) {
   // Get current user
-  server.tool(
+  server.registerTool(
     "get_current_user",
-    "Get the current authenticated user's profile information including display name, email, job title, and department.",
-    {},
+    {
+      title: "Get Current User",
+      description:
+        "Get the current authenticated user's profile information including display name, email, job title, and department.",
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
     async () => {
       try {
         const client = await graphService.getClient();
@@ -50,11 +60,21 @@ export function registerUsersTools(
   );
 
   // Search users
-  server.tool(
+  server.registerTool(
     "search_users",
-    "Search for users in the organization by name or email address. Returns matching users with their basic profile information.",
     {
-      query: z.string().describe("Search query (name or email)"),
+      title: "Search Users",
+      description:
+        "Search for users in the organization by name or email address. Returns matching users with their basic profile information.",
+      inputSchema: {
+        query: z.string().describe("Search query (name or email)"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ query }) => {
       try {
@@ -107,11 +127,21 @@ export function registerUsersTools(
   );
 
   // Get specific user
-  server.tool(
+  server.registerTool(
     "get_user",
-    "Get detailed information about a specific user by their ID or email address. Returns profile information including name, email, job title, and department.",
     {
-      userId: z.string().describe("User ID or email address"),
+      title: "Get User",
+      description:
+        "Get detailed information about a specific user by their ID or email address. Returns profile information including name, email, job title, and department.",
+      inputSchema: {
+        userId: z.string().describe("User ID or email address"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ userId }) => {
       try {

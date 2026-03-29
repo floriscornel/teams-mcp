@@ -20,10 +20,18 @@ describe("Authentication Tools", () => {
       mockGraphService = createMockGraphService();
       registerAuthTools(mockServer, mockGraphService, false);
 
-      expect(mockServer.tool).toHaveBeenCalledWith(
+      expect(mockServer.registerTool).toHaveBeenCalledWith(
         "auth_status",
-        "Check the authentication status of the Microsoft Graph connection. Returns whether the user is authenticated and shows their basic profile information.",
-        {},
+        expect.objectContaining({
+          title: "Auth Status",
+          description:
+            "Check the authentication status of the Microsoft Graph connection. Returns whether the user is authenticated and shows their basic profile information.",
+          inputSchema: {},
+          annotations: expect.objectContaining({
+            readOnlyHint: true,
+            destructiveHint: false,
+          }),
+        }),
         expect.any(Function)
       );
     });
@@ -144,10 +152,12 @@ describe("Authentication Tools", () => {
       }).not.toThrow();
 
       // Tool should still be registered
-      expect(mockServer.tool).toHaveBeenCalledWith(
+      expect(mockServer.registerTool).toHaveBeenCalledWith(
         "auth_status",
-        expect.any(String),
-        {},
+        expect.objectContaining({
+          description: expect.any(String),
+          inputSchema: {},
+        }),
         expect.any(Function)
       );
     });
