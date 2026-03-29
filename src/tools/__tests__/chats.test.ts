@@ -1041,7 +1041,7 @@ describe("Chat Tools", () => {
           {
             "@odata.type": "#microsoft.graph.aadUserConversationMember",
             user: { id: "otheruser456" },
-            roles: ["member"],
+            roles: ["owner"],
           },
         ],
       });
