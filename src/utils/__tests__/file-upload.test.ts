@@ -304,9 +304,17 @@ describe("uploadFileToChat", () => {
           return {
             header: vi.fn().mockReturnValue({
               put: vi.fn().mockResolvedValue({
+                id: "uploaded-item-id",
                 webUrl: "https://onedrive.com/chat-file.docx",
                 eTag: '"{DDDD-EEEE-FFFF},1"',
               }),
+            }),
+          };
+        }
+        if (path.includes("/createLink")) {
+          return {
+            post: vi.fn().mockResolvedValue({
+              link: { webUrl: "https://share.onedrive.com/org-link" },
             }),
           };
         }
@@ -322,7 +330,7 @@ describe("uploadFileToChat", () => {
   it("should upload a file to chat and return correct result", async () => {
     const result = await uploadFileToChat(mockGraphService, "/tmp/document.docx");
 
-    expect(result.webUrl).toBe("https://onedrive.com/chat-file.docx");
+    expect(result.webUrl).toBe("https://share.onedrive.com/org-link");
     expect(result.attachmentId).toBe("DDDD-EEEE-FFFF");
     expect(result.fileName).toBe("document.docx");
     expect(result.mimeType).toBe(
@@ -365,5 +373,116 @@ describe("uploadFileToChat", () => {
     await expect(uploadFileToChat(mockGraphService, "/tmp/file.pdf")).rejects.toThrow(
       "Failed to resolve user drive ID"
     );
+  });
+
+  it("should create organization sharing link and use its URL", async () => {
+    const result = await uploadFileToChat(mockGraphService, "/tmp/file.txt");
+
+    expect(result.webUrl).toBe("https://share.onedrive.com/org-link");
+
+    const apiCalls = mockClient.api.mock.calls.map((c: any[]) => c[0]);
+    const createLinkCall = apiCalls.find((p: string) => p.includes("/createLink"));
+    expect(createLinkCall).toBe("/drives/user-drive-id/items/uploaded-item-id/createLink");
+  });
+
+  it("should fall back to 'users' scope when organization scope fails", async () => {
+    let createLinkCallCount = 0;
+    mockClient.api.mockImplementation((path: string) => {
+      if (path === "/me/drive") {
+        return {
+          get: vi.fn().mockResolvedValue({ id: "user-drive-id" }),
+        };
+      }
+      if (path.includes("/content")) {
+        return {
+          header: vi.fn().mockReturnValue({
+            put: vi.fn().mockResolvedValue({
+              id: "uploaded-item-id",
+              webUrl: "https://onedrive.com/direct-url",
+              eTag: '"{DDDD-EEEE-FFFF},1"',
+            }),
+          }),
+        };
+      }
+      if (path.includes("/createLink")) {
+        createLinkCallCount++;
+        if (createLinkCallCount === 1) {
+          return {
+            post: vi.fn().mockRejectedValue(new Error("Organization scope disabled by policy")),
+          };
+        }
+        return {
+          post: vi.fn().mockResolvedValue({
+            link: { webUrl: "https://share.onedrive.com/users-link" },
+          }),
+        };
+      }
+      return { get: vi.fn(), post: vi.fn() };
+    });
+
+    const result = await uploadFileToChat(mockGraphService, "/tmp/file.txt");
+
+    expect(result.webUrl).toBe("https://share.onedrive.com/users-link");
+    expect(createLinkCallCount).toBe(2);
+  });
+
+  it("should fall back to direct webUrl when both sharing scopes fail", async () => {
+    mockClient.api.mockImplementation((path: string) => {
+      if (path === "/me/drive") {
+        return {
+          get: vi.fn().mockResolvedValue({ id: "user-drive-id" }),
+        };
+      }
+      if (path.includes("/content")) {
+        return {
+          header: vi.fn().mockReturnValue({
+            put: vi.fn().mockResolvedValue({
+              id: "uploaded-item-id",
+              webUrl: "https://onedrive.com/direct-url",
+              eTag: '"{DDDD-EEEE-FFFF},1"',
+            }),
+          }),
+        };
+      }
+      if (path.includes("/createLink")) {
+        return {
+          post: vi.fn().mockRejectedValue(new Error("Sharing links disabled")),
+        };
+      }
+      return { get: vi.fn(), post: vi.fn() };
+    });
+
+    const result = await uploadFileToChat(mockGraphService, "/tmp/file.txt");
+
+    expect(result.webUrl).toBe("https://onedrive.com/direct-url");
+  });
+
+  it("should fall back to direct webUrl when upload result has no id", async () => {
+    mockClient.api.mockImplementation((path: string) => {
+      if (path === "/me/drive") {
+        return {
+          get: vi.fn().mockResolvedValue({ id: "user-drive-id" }),
+        };
+      }
+      if (path.includes("/content")) {
+        return {
+          header: vi.fn().mockReturnValue({
+            put: vi.fn().mockResolvedValue({
+              webUrl: "https://onedrive.com/no-id-file.txt",
+              eTag: '"{AAAA-BBBB-CCCC},1"',
+            }),
+          }),
+        };
+      }
+      return { get: vi.fn(), post: vi.fn() };
+    });
+
+    const result = await uploadFileToChat(mockGraphService, "/tmp/file.txt");
+
+    expect(result.webUrl).toBe("https://onedrive.com/no-id-file.txt");
+    // Verify createLink was never called (no id means no sharing link attempt)
+    const apiCalls = mockClient.api.mock.calls.map((c: any[]) => c[0]);
+    const createLinkCalls = apiCalls.filter((p: string) => p.includes("/createLink"));
+    expect(createLinkCalls).toHaveLength(0);
   });
 });
