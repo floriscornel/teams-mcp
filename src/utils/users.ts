@@ -1,5 +1,12 @@
 import type { GraphService } from "../services/graph.js";
 import type { User } from "../types/graph.js";
+import type {
+  MentionMapping,
+  GraphMention,
+  UserMentionMapping,
+  ChannelMentionMapping,
+} from "../types/mentions.js";
+import { isUserMentionMapping } from "../types/mentions.js";
 
 export interface UserInfo {
   id: string;
@@ -132,18 +139,18 @@ export async function parseMentions(
 }
 
 /**
- * Generate HTML content with @mentions converted to proper format
+ * Generate HTML content with @mentions converted to proper format.
+ * Supports both user mentions and channel mentions.
  */
 export function processMentionsInHtml(
   html: string,
-  mentionMappings: Array<{ mention: string; userId: string; displayName: string }>
+  mentionMappings: MentionMapping[]
 ): {
   content: string;
-  mentions: Array<{ id: number; mentionText: string; mentioned: { user: { id: string } } }>;
+  mentions: GraphMention[];
 } {
   let processedContent = html;
-  const mentions: Array<{ id: number; mentionText: string; mentioned: { user: { id: string } } }> =
-    [];
+  const mentions: GraphMention[] = [];
 
   mentionMappings.forEach((mapping, index) => {
     // Replace @mention with HTML mention format
@@ -158,19 +165,38 @@ export function processMentionsInHtml(
       `<at id="${mentionId}">${mapping.displayName}</at>`
     );
 
-    mentions.push({
-      id: mentionId,
-      mentionText: mapping.displayName,
-      mentioned: {
-        user: {
-          id: mapping.userId,
+    if (isUserMentionMapping(mapping)) {
+      // User mention
+      mentions.push({
+        id: mentionId,
+        mentionText: mapping.displayName,
+        mentioned: {
+          user: {
+            id: mapping.userId,
+          },
         },
-      },
-    });
+      });
+    } else {
+      // Channel mention
+      mentions.push({
+        id: mentionId,
+        mentionText: mapping.displayName,
+        mentioned: {
+          conversation: {
+            id: mapping.channelId,
+            displayName: mapping.displayName,
+            conversationIdentityType: "channel",
+          },
+        },
+      });
+    }
   });
 
   return { content: processedContent, mentions };
 }
+
+// Re-export types for convenience
+export type { MentionMapping, GraphMention, UserMentionMapping, ChannelMentionMapping };
 
 function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
