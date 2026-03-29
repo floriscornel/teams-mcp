@@ -1397,6 +1397,52 @@ describe("Teams Tools", () => {
       expect(result.content[0].text).toContain("❌ No hosted content found");
       expect(result.isError).toBe(true);
     });
+
+    it("should include replyId parameter in schema", () => {
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("download_message_hosted_content");
+      expect(tool.schema.replyId).toBeDefined();
+    });
+
+    it("should use reply endpoint when replyId is provided", async () => {
+      const replyMessage = {
+        id: "reply-1",
+        body: {
+          content:
+            '<img src="https://graph.microsoft.com/v1.0/teams/t1/channels/c1/messages/msg-1/replies/reply-1/hostedContents/content123/$value" />',
+        },
+      };
+
+      const pngHeader = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+      const mockApiChain = {
+        get: vi.fn(),
+        responseType: vi.fn().mockReturnThis(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      mockApiChain.get.mockResolvedValueOnce(replyMessage).mockResolvedValueOnce(pngHeader.buffer);
+
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("download_message_hosted_content");
+      const result = await tool.handler({
+        teamId: "t1",
+        channelId: "c1",
+        messageId: "msg-1",
+        replyId: "reply-1",
+      });
+
+      // Verify the correct API endpoints were called
+      const apiCalls = mockClient.api.mock.calls.map((call: any) => call[0]);
+      expect(apiCalls).toContain("/teams/t1/channels/c1/messages/msg-1/replies/reply-1");
+      expect(apiCalls).toContain(
+        "/teams/t1/channels/c1/messages/msg-1/replies/reply-1/hostedContents/content123/$value"
+      );
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.replyId).toBe("reply-1");
+      expect(parsed.successCount).toBe(1);
+    });
   });
 
   describe("set_channel_message_reaction tool", () => {

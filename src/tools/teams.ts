@@ -919,6 +919,10 @@ export function registerTeamsTools(
       teamId: z.string().describe("Team ID"),
       channelId: z.string().describe("Channel ID"),
       messageId: z.string().describe("Message ID containing the hosted content"),
+      replyId: z
+        .string()
+        .optional()
+        .describe("Reply ID if downloading hosted content from a reply to a message (optional)"),
       hostedContentId: z
         .string()
         .optional()
@@ -932,14 +936,17 @@ export function registerTeamsTools(
           "Optional file path to save the content. Supports UNC paths (e.g., \\\\wsl.localhost\\Ubuntu\\tmp\\file.png)."
         ),
     },
-    async ({ teamId, channelId, messageId, hostedContentId, savePath }) => {
+    async ({ teamId, channelId, messageId, replyId, hostedContentId, savePath }) => {
       try {
         const client = await graphService.getClient();
 
+        // Build endpoint based on whether it's a reply or main message
+        const messageEndpoint = replyId
+          ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}`
+          : `/teams/${teamId}/channels/${channelId}/messages/${messageId}`;
+
         // First, get the message to find hosted content references
-        const message = (await client
-          .api(`/teams/${teamId}/channels/${channelId}/messages/${messageId}`)
-          .get()) as ChatMessage;
+        const message = (await client.api(messageEndpoint).get()) as ChatMessage;
 
         if (!message) {
           return {
@@ -994,11 +1001,14 @@ export function registerTeamsTools(
 
         for (const contentId of contentIds) {
           try {
+            // Build hosted content endpoint based on whether it's a reply or main message
+            const hostedContentEndpoint = replyId
+              ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}/hostedContents/${contentId}/$value`
+              : `/teams/${teamId}/channels/${channelId}/messages/${messageId}/hostedContents/${contentId}/$value`;
+
             // Get the hosted content binary data
             const response = await client
-              .api(
-                `/teams/${teamId}/channels/${channelId}/messages/${messageId}/hostedContents/${contentId}/$value`
-              )
+              .api(hostedContentEndpoint)
               .responseType("arraybuffer" as any)
               .get();
 
@@ -1100,6 +1110,7 @@ export function registerTeamsTools(
                 {
                   summary,
                   messageId,
+                  ...(replyId && { replyId }),
                   totalContentItems: contentIds.length,
                   successCount,
                   errorCount,
