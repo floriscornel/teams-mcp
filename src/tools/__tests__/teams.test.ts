@@ -65,14 +65,16 @@ describe("Teams Tools", () => {
       expect(registeredTools).not.toContain("reply_to_channel_message");
       expect(registeredTools).not.toContain("delete_channel_message");
       expect(registeredTools).not.toContain("update_channel_message");
+      expect(registeredTools).not.toContain("set_channel_message_reaction");
+      expect(registeredTools).not.toContain("unset_channel_message_reaction");
       expect(registeredTools).not.toContain("send_file_to_channel");
     });
 
-    it("should register all 12 tools when readOnly is false", () => {
+    it("should register all 14 tools when readOnly is false", () => {
       registerTeamsTools(mockServer, mockGraphService, false);
 
       const registeredTools = mockServer.getAllTools();
-      expect(registeredTools).toHaveLength(12);
+      expect(registeredTools).toHaveLength(14);
     });
   });
 
@@ -1403,6 +1405,190 @@ describe("Teams Tools", () => {
       });
 
       expect(result.content[0].text).toContain("❌ No hosted content found");
+      expect(result.isError).toBe(true);
+    });
+
+    it("should include replyId parameter in schema", () => {
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("download_message_hosted_content");
+      expect(tool.schema.replyId).toBeDefined();
+    });
+
+    it("should use reply endpoint when replyId is provided", async () => {
+      const replyMessage = {
+        id: "reply-1",
+        body: {
+          content:
+            '<img src="https://graph.microsoft.com/v1.0/teams/t1/channels/c1/messages/msg-1/replies/reply-1/hostedContents/content123/$value" />',
+        },
+      };
+
+      const pngHeader = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+      const mockApiChain = {
+        get: vi.fn(),
+        responseType: vi.fn().mockReturnThis(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      mockApiChain.get.mockResolvedValueOnce(replyMessage).mockResolvedValueOnce(pngHeader.buffer);
+
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("download_message_hosted_content");
+      const result = await tool.handler({
+        teamId: "t1",
+        channelId: "c1",
+        messageId: "msg-1",
+        replyId: "reply-1",
+      });
+
+      // Verify the correct API endpoints were called
+      const apiCalls = mockClient.api.mock.calls.map((call: any) => call[0]);
+      expect(apiCalls).toContain("/teams/t1/channels/c1/messages/msg-1/replies/reply-1");
+      expect(apiCalls).toContain(
+        "/teams/t1/channels/c1/messages/msg-1/replies/reply-1/hostedContents/content123/$value"
+      );
+
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.replyId).toBe("reply-1");
+      expect(parsed.successCount).toBe(1);
+    });
+  });
+
+  describe("set_channel_message_reaction tool", () => {
+    it("should set a reaction on a channel message", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("set_channel_message_reaction");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        reactionType: "like",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/test-team-id/channels/test-channel-id/messages/msg-123/setReaction"
+      );
+      expect(mockApiChain.post).toHaveBeenCalledWith({ reactionType: "like" });
+      expect(result.content[0].text).toBe("✅ Reaction like added to message msg-123.");
+    });
+
+    it("should set a reaction on a reply", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("set_channel_message_reaction");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        reactionType: "👍",
+        replyId: "reply-456",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/test-team-id/channels/test-channel-id/messages/msg-123/replies/reply-456/setReaction"
+      );
+      expect(mockApiChain.post).toHaveBeenCalledWith({ reactionType: "👍" });
+      expect(result.content[0].text).toBe("✅ Reaction 👍 added to reply reply-456.");
+    });
+
+    it("should handle set reaction errors", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockRejectedValue(new Error("Forbidden")),
+        get: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("set_channel_message_reaction");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        reactionType: "like",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to set reaction: Forbidden");
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("unset_channel_message_reaction tool", () => {
+    it("should unset a reaction on a channel message", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("unset_channel_message_reaction");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        reactionType: "like",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/test-team-id/channels/test-channel-id/messages/msg-123/unsetReaction"
+      );
+      expect(mockApiChain.post).toHaveBeenCalledWith({ reactionType: "like" });
+      expect(result.content[0].text).toBe("✅ Reaction like removed from message msg-123.");
+    });
+
+    it("should unset a reaction on a reply", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("unset_channel_message_reaction");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        reactionType: "heart",
+        replyId: "reply-456",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/test-team-id/channels/test-channel-id/messages/msg-123/replies/reply-456/unsetReaction"
+      );
+      expect(mockApiChain.post).toHaveBeenCalledWith({ reactionType: "heart" });
+      expect(result.content[0].text).toBe("✅ Reaction heart removed from reply reply-456.");
+    });
+
+    it("should handle unset reaction errors", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockRejectedValue(new Error("Not found")),
+        get: vi.fn(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("unset_channel_message_reaction");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "msg-123",
+        reactionType: "like",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to unset reaction: Not found");
       expect(result.isError).toBe(true);
     });
   });

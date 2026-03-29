@@ -39,7 +39,7 @@ describe("Chat Tools", () => {
     it("should register all chat tools", () => {
       registerChatTools(mockServer, mockGraphService, false);
 
-      expect(mockServer.registerTool).toHaveBeenCalledTimes(8);
+      expect(mockServer.registerTool).toHaveBeenCalledTimes(10);
       expect(mockServer.registerTool).toHaveBeenCalledWith(
         "list_chats",
         expect.any(Object),
@@ -67,6 +67,16 @@ describe("Chat Tools", () => {
       );
       expect(mockServer.registerTool).toHaveBeenCalledWith(
         "delete_chat_message",
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(mockServer.registerTool).toHaveBeenCalledWith(
+        "set_chat_message_reaction",
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(mockServer.registerTool).toHaveBeenCalledWith(
+        "unset_chat_message_reaction",
         expect.any(Object),
         expect.any(Function)
       );
@@ -1035,7 +1045,7 @@ describe("Chat Tools", () => {
           {
             "@odata.type": "#microsoft.graph.aadUserConversationMember",
             user: { id: "otheruser456" },
-            roles: ["member"],
+            roles: ["owner"],
           },
         ],
       });
@@ -1146,6 +1156,188 @@ describe("Chat Tools", () => {
       });
 
       expect(result.content[0].text).toBe("❌ Error: Failed to create chat");
+    });
+  });
+
+  describe("get_chat_messages reactions", () => {
+    let getChatMessagesHandler: (args?: any) => Promise<any>;
+
+    beforeEach(() => {
+      registerChatTools(mockServer, mockGraphService, false);
+      const call = vi
+        .mocked(mockServer.registerTool)
+        .mock.calls.find(([name]) => name === "get_chat_messages");
+      getChatMessagesHandler = call?.[2] as unknown as (args?: any) => Promise<any>;
+    });
+
+    it("should include reactions in message summaries", async () => {
+      const mockMessages = [
+        {
+          id: "msg1",
+          body: { content: "Hello world" },
+          from: { user: { displayName: "John Doe" } },
+          createdDateTime: "2023-01-01T10:00:00Z",
+          reactions: [
+            {
+              reactionType: "like",
+              displayName: "Like",
+              createdDateTime: "2023-01-01T10:01:00Z",
+            },
+            {
+              reactionType: "heart",
+              displayName: "Heart",
+              createdDateTime: "2023-01-01T10:02:00Z",
+            },
+          ],
+        },
+      ];
+
+      const mockApiChain = {
+        get: vi.fn().mockResolvedValue({ value: mockMessages }),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await getChatMessagesHandler({ chatId: "chat123" });
+      const parsedResponse = JSON.parse(result.content[0].text);
+
+      expect(parsedResponse.messages[0].reactions).toHaveLength(2);
+      expect(parsedResponse.messages[0].reactions[0]).toEqual({
+        reactionType: "like",
+        displayName: "Like",
+        createdDateTime: "2023-01-01T10:01:00Z",
+      });
+      expect(parsedResponse.messages[0].reactions[1]).toEqual({
+        reactionType: "heart",
+        displayName: "Heart",
+        createdDateTime: "2023-01-01T10:02:00Z",
+      });
+    });
+
+    it("should handle messages without reactions", async () => {
+      const mockMessages = [
+        {
+          id: "msg1",
+          body: { content: "No reactions" },
+          from: { user: { displayName: "John" } },
+          createdDateTime: "2023-01-01T10:00:00Z",
+        },
+      ];
+
+      const mockApiChain = {
+        get: vi.fn().mockResolvedValue({ value: mockMessages }),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await getChatMessagesHandler({ chatId: "chat123" });
+      const parsedResponse = JSON.parse(result.content[0].text);
+
+      expect(parsedResponse.messages[0].reactions).toBeUndefined();
+    });
+  });
+
+  describe("set_chat_message_reaction", () => {
+    let setReactionHandler: (args?: any) => Promise<any>;
+
+    beforeEach(() => {
+      registerChatTools(mockServer, mockGraphService, false);
+      const call = vi
+        .mocked(mockServer.registerTool)
+        .mock.calls.find(([name]) => name === "set_chat_message_reaction");
+      setReactionHandler = call?.[2] as unknown as (args?: any) => Promise<any>;
+    });
+
+    it("should set a reaction on a chat message", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await setReactionHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        reactionType: "like",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith("/chats/chat123/messages/msg456/setReaction");
+      expect(mockApiChain.post).toHaveBeenCalledWith({ reactionType: "like" });
+      expect(result.content[0].text).toBe("✅ Reaction like added to message msg456.");
+    });
+
+    it("should set a unicode emoji reaction", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await setReactionHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        reactionType: "👍",
+      });
+
+      expect(mockApiChain.post).toHaveBeenCalledWith({ reactionType: "👍" });
+      expect(result.content[0].text).toContain("👍");
+    });
+
+    it("should handle errors", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockRejectedValue(new Error("Forbidden")),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await setReactionHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        reactionType: "like",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to set reaction: Forbidden");
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("unset_chat_message_reaction", () => {
+    let unsetReactionHandler: (args?: any) => Promise<any>;
+
+    beforeEach(() => {
+      registerChatTools(mockServer, mockGraphService, false);
+      const call = vi
+        .mocked(mockServer.registerTool)
+        .mock.calls.find(([name]) => name === "unset_chat_message_reaction");
+      unsetReactionHandler = call?.[2] as unknown as (args?: any) => Promise<any>;
+    });
+
+    it("should unset a reaction on a chat message", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockResolvedValue(undefined),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await unsetReactionHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        reactionType: "like",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith("/chats/chat123/messages/msg456/unsetReaction");
+      expect(mockApiChain.post).toHaveBeenCalledWith({ reactionType: "like" });
+      expect(result.content[0].text).toBe("✅ Reaction like removed from message msg456.");
+    });
+
+    it("should handle errors", async () => {
+      const mockApiChain = {
+        post: vi.fn().mockRejectedValue(new Error("Not found")),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await unsetReactionHandler({
+        chatId: "chat123",
+        messageId: "msg456",
+        reactionType: "like",
+      });
+
+      expect(result.content[0].text).toBe("❌ Failed to unset reaction: Not found");
+      expect(result.isError).toBe(true);
     });
   });
 

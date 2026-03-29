@@ -5,10 +5,12 @@ import type {
   Channel,
   ChannelSummary,
   ChatMessage,
+  ChatMessageReaction,
   ConversationMember,
   GraphApiResponse,
   MemberSummary,
   MessageSummary,
+  ReactionSummary,
   Team,
   TeamSummary,
 } from "../types/graph.js";
@@ -237,6 +239,13 @@ export function registerTeamsTools(
           createdDateTime: message.createdDateTime,
           importance: message.importance,
           attachments: extractAttachmentSummaries(message.attachments),
+          reactions: message.reactions?.map(
+            (r: ChatMessageReaction): ReactionSummary => ({
+              reactionType: r.reactionType,
+              displayName: r.displayName,
+              createdDateTime: r.createdDateTime,
+            })
+          ),
         }));
 
         // Sort messages by creation date (newest first) since API doesn't support orderby
@@ -573,6 +582,13 @@ export function registerTeamsTools(
           createdDateTime: reply.createdDateTime,
           importance: reply.importance,
           attachments: extractAttachmentSummaries(reply.attachments),
+          reactions: reply.reactions?.map(
+            (r: ChatMessageReaction): ReactionSummary => ({
+              reactionType: r.reactionType,
+              displayName: r.displayName,
+              createdDateTime: r.createdDateTime,
+            })
+          ),
         }));
 
         // Sort replies by creation date (oldest first for replies)
@@ -992,6 +1008,10 @@ export function registerTeamsTools(
         teamId: z.string().describe("Team ID"),
         channelId: z.string().describe("Channel ID"),
         messageId: z.string().describe("Message ID containing the hosted content"),
+        replyId: z
+          .string()
+          .optional()
+          .describe("Reply ID if downloading hosted content from a reply to a message (optional)"),
         hostedContentId: z
           .string()
           .optional()
@@ -1012,14 +1032,17 @@ export function registerTeamsTools(
         openWorldHint: false,
       },
     },
-    async ({ teamId, channelId, messageId, hostedContentId, savePath }) => {
+    async ({ teamId, channelId, messageId, replyId, hostedContentId, savePath }) => {
       try {
         const client = await graphService.getClient();
 
+        // Build endpoint based on whether it's a reply or main message
+        const messageEndpoint = replyId
+          ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}`
+          : `/teams/${teamId}/channels/${channelId}/messages/${messageId}`;
+
         // First, get the message to find hosted content references
-        const message = (await client
-          .api(`/teams/${teamId}/channels/${channelId}/messages/${messageId}`)
-          .get()) as ChatMessage;
+        const message = (await client.api(messageEndpoint).get()) as ChatMessage;
 
         if (!message) {
           return {
@@ -1074,11 +1097,14 @@ export function registerTeamsTools(
 
         for (const contentId of contentIds) {
           try {
+            // Build hosted content endpoint based on whether it's a reply or main message
+            const hostedContentEndpoint = replyId
+              ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}/hostedContents/${contentId}/$value`
+              : `/teams/${teamId}/channels/${channelId}/messages/${messageId}/hostedContents/${contentId}/$value`;
+
             // Get the hosted content binary data
             const response = await client
-              .api(
-                `/teams/${teamId}/channels/${channelId}/messages/${messageId}/hostedContents/${contentId}/$value`
-              )
+              .api(hostedContentEndpoint)
               .responseType("arraybuffer" as any)
               .get();
 
@@ -1180,6 +1206,7 @@ export function registerTeamsTools(
                 {
                   summary,
                   messageId,
+                  ...(replyId && { replyId }),
                   totalContentItems: contentIds.length,
                   successCount,
                   errorCount,
@@ -1419,6 +1446,133 @@ export function registerTeamsTools(
               {
                 type: "text" as const,
                 text: `❌ Failed to update channel message: ${errorMessage}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    );
+
+  // Set a reaction on a channel message (write — skipped in read-only mode)
+  if (!readOnly)
+    server.registerTool(
+      "set_channel_message_reaction",
+      {
+        title: "Set Channel Message Reaction",
+        description:
+          "Add a reaction to a message in a Teams channel. Supports Unicode emoji characters and named reactions (like, angry, sad, laugh, heart, surprised). Can also react to replies.",
+        inputSchema: {
+          teamId: z.string().describe("Team ID"),
+          channelId: z.string().describe("Channel ID"),
+          messageId: z.string().describe("Message ID to react to"),
+          reactionType: z
+            .string()
+            .describe(
+              'Reaction type - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
+            ),
+          replyId: z.string().optional().describe("Reply ID if reacting to a reply (optional)"),
+        },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+      },
+      async ({ teamId, channelId, messageId, reactionType, replyId }) => {
+        try {
+          const client = await graphService.getClient();
+
+          const endpoint = replyId
+            ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}/setReaction`
+            : `/teams/${teamId}/channels/${channelId}/messages/${messageId}/setReaction`;
+
+          await client.api(endpoint).post({ reactionType });
+
+          const targetId = replyId || messageId;
+          const targetType = replyId ? "reply" : "message";
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `✅ Reaction ${reactionType} added to ${targetType} ${targetId}.`,
+              },
+            ],
+          };
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `❌ Failed to set reaction: ${errorMessage}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    );
+
+  // Unset a reaction on a channel message (write — skipped in read-only mode)
+  if (!readOnly)
+    server.registerTool(
+      "unset_channel_message_reaction",
+      {
+        title: "Unset Channel Message Reaction",
+        description:
+          "Remove a reaction from a message in a Teams channel. Can also remove reactions from replies.",
+        inputSchema: {
+          teamId: z.string().describe("Team ID"),
+          channelId: z.string().describe("Channel ID"),
+          messageId: z.string().describe("Message ID to remove reaction from"),
+          reactionType: z
+            .string()
+            .describe(
+              'Reaction type to remove - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
+            ),
+          replyId: z
+            .string()
+            .optional()
+            .describe("Reply ID if removing reaction from a reply (optional)"),
+        },
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
+      },
+      async ({ teamId, channelId, messageId, reactionType, replyId }) => {
+        try {
+          const client = await graphService.getClient();
+
+          const endpoint = replyId
+            ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}/unsetReaction`
+            : `/teams/${teamId}/channels/${channelId}/messages/${messageId}/unsetReaction`;
+
+          await client.api(endpoint).post({ reactionType });
+
+          const targetId = replyId || messageId;
+          const targetType = replyId ? "reply" : "message";
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `✅ Reaction ${reactionType} removed from ${targetType} ${targetId}.`,
+              },
+            ],
+          };
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `❌ Failed to unset reaction: ${errorMessage}`,
               },
             ],
             isError: true,

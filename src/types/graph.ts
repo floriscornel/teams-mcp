@@ -6,6 +6,7 @@ import type {
   ChatMessageAttachment,
   ChatMessageImportance,
   ChatMessageInfo,
+  ChatMessageReaction,
   ChatType,
   ConversationMember,
   NullableOption,
@@ -18,21 +19,22 @@ import type {
 
 // Re-export Microsoft Graph types we use
 export type {
-  User,
-  Chat,
-  Team,
   Channel,
+  ChannelMembershipType,
+  Chat,
   ChatMessage,
   ChatMessageAttachment,
-  ConversationMember,
-  TeamsAppInstallation,
-  ChatMessageInfo,
-  ChannelMembershipType,
-  ChatType,
   ChatMessageImportance,
-  TeamSpecialization,
-  TeamVisibilityType,
+  ChatMessageInfo,
+  ChatMessageReaction,
+  ChatType,
+  ConversationMember,
   NullableOption,
+  Team,
+  TeamSpecialization,
+  TeamsAppInstallation,
+  TeamVisibilityType,
+  User,
 };
 
 // Custom types for our responses
@@ -93,6 +95,12 @@ export interface AttachmentSummary {
   thumbnailUrl?: string | undefined;
 }
 
+export interface ReactionSummary {
+  reactionType?: string | undefined;
+  displayName?: NullableOption<string> | undefined;
+  createdDateTime?: string | undefined;
+}
+
 export interface MessageSummary {
   id?: string | undefined;
   content?: NullableOption<string> | undefined;
@@ -100,6 +108,7 @@ export interface MessageSummary {
   createdDateTime?: NullableOption<string> | undefined;
   importance?: ChatMessageImportance | undefined;
   attachments?: AttachmentSummary[] | undefined;
+  reactions?: ReactionSummary[] | undefined;
 }
 
 export interface MemberSummary {

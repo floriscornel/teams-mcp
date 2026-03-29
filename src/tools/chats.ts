@@ -4,11 +4,13 @@ import type { GraphService } from "../services/graph.js";
 import type {
   Chat,
   ChatMessage,
+  ChatMessageReaction,
   ChatSummary,
   ConversationMember,
   CreateChatPayload,
   GraphApiResponse,
   MessageSummary,
+  ReactionSummary,
   User,
 } from "../types/graph.js";
 import { extractAttachmentSummaries } from "../utils/attachments.js";
@@ -293,6 +295,13 @@ export function registerChatTools(
           from: message.from?.user?.displayName,
           createdDateTime: message.createdDateTime,
           attachments: extractAttachmentSummaries(message.attachments),
+          reactions: message.reactions?.map(
+            (r: ChatMessageReaction): ReactionSummary => ({
+              reactionType: r.reactionType,
+              displayName: r.displayName,
+              createdDateTime: r.createdDateTime,
+            })
+          ),
         }));
 
         return {
@@ -693,7 +702,9 @@ export function registerChatTools(
           } as ConversationMember,
         ];
 
-        // Add other users as members
+        // Add other users
+        // For oneOnOne chats, all members must have "owner" role
+        const isOneOnOne = userEmails.length === 1;
         for (const email of userEmails) {
           const user = (await client.api(`/users/${email}`).get()) as User;
           members.push({
@@ -701,16 +712,16 @@ export function registerChatTools(
             user: {
               id: user?.id,
             },
-            roles: ["member"],
+            roles: [isOneOnOne ? "owner" : "member"],
           } as ConversationMember);
         }
 
         const chatData: CreateChatPayload = {
-          chatType: userEmails.length === 1 ? "oneOnOne" : "group",
+          chatType: isOneOnOne ? "oneOnOne" : "group",
           members,
         };
 
-        if (topic && userEmails.length > 1) {
+        if (topic && !isOneOnOne) {
           chatData.topic = topic;
         }
 
@@ -930,6 +941,113 @@ export function registerChatTools(
             {
               type: "text" as const,
               text: `❌ Failed to delete message: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Set a reaction on a chat message
+  server.registerTool(
+    "set_chat_message_reaction",
+    {
+      title: "Set Chat Message Reaction",
+      description:
+        "Add a reaction to a message in a chat conversation. Supports Unicode emoji characters and named reactions (like, angry, sad, laugh, heart, surprised).",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID"),
+        messageId: z.string().describe("Message ID to react to"),
+        reactionType: z
+          .string()
+          .describe(
+            'Reaction type - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
+          ),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ chatId, messageId, reactionType }) => {
+      try {
+        const client = await graphService.getClient();
+
+        await client
+          .api(`/chats/${chatId}/messages/${messageId}/setReaction`)
+          .post({ reactionType });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `✅ Reaction ${reactionType} added to message ${messageId}.`,
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `❌ Failed to set reaction: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Unset a reaction on a chat message
+  server.registerTool(
+    "unset_chat_message_reaction",
+    {
+      title: "Unset Chat Message Reaction",
+      description: "Remove a reaction from a message in a chat conversation.",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID"),
+        messageId: z.string().describe("Message ID to remove reaction from"),
+        reactionType: z
+          .string()
+          .describe(
+            'Reaction type to remove - Unicode emoji (e.g., "👍") or named reaction (e.g., "like", "heart")'
+          ),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ chatId, messageId, reactionType }) => {
+      try {
+        const client = await graphService.getClient();
+
+        await client
+          .api(`/chats/${chatId}/messages/${messageId}/unsetReaction`)
+          .post({ reactionType });
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `✅ Reaction ${reactionType} removed from message ${messageId}.`,
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `❌ Failed to unset reaction: ${errorMessage}`,
             },
           ],
           isError: true,
