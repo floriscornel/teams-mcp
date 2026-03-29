@@ -18,21 +18,21 @@ import type {
 
 // Re-export Microsoft Graph types we use
 export type {
-  User,
-  Chat,
-  Team,
   Channel,
+  ChannelMembershipType,
+  Chat,
   ChatMessage,
   ChatMessageAttachment,
-  ConversationMember,
-  TeamsAppInstallation,
-  ChatMessageInfo,
-  ChannelMembershipType,
-  ChatType,
   ChatMessageImportance,
-  TeamSpecialization,
-  TeamVisibilityType,
+  ChatMessageInfo,
+  ChatType,
+  ConversationMember,
   NullableOption,
+  Team,
+  TeamSpecialization,
+  TeamsAppInstallation,
+  TeamVisibilityType,
+  User,
 };
 
 // Custom types for our responses
