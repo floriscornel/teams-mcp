@@ -1,6 +1,6 @@
 import { type AccountInfo, PublicClientApplication } from "@azure/msal-node";
 import { Client } from "@microsoft/microsoft-graph-client";
-import { cachePlugin } from "../msal-cache.js";
+import { createCachePlugin } from "../msal-cache.js";
 
 const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
 const AUTHORITY = "https://login.microsoftonline.com/common";
@@ -82,6 +82,7 @@ export class GraphService {
       }
 
       // Priority 2: MSAL with cached refresh token for automatic token renewal
+      const cachePlugin = await createCachePlugin();
       this.msalApp = new PublicClientApplication({
         auth: {
           clientId: CLIENT_ID,
