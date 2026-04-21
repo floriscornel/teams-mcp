@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mockUser, server } from "../../test-utils/setup.js";
+import { mockUser } from "../../test-utils/setup.js";
 
 // Mock the msal-cache plugin
 vi.mock("../../msal-cache.js", () => ({
@@ -45,19 +45,19 @@ function setupDefaultMsalMock() {
 describe("GraphService", () => {
   let graphService: GraphService;
 
+  // MSW server lifecycle (listen/resetHandlers/close) is managed globally by
+  // src/test-utils/vitest.setup.ts — calling server.listen()/close() again
+  // here causes "Invariant Violation: server.listen() called twice" on the
+  // second test of this file (and intermittently kills handlers for later
+  // test files running in the same worker after server.close() is called in
+  // afterEach). Only local concerns (singleton reset + mocks) belong here.
   beforeEach(() => {
-    server.listen({ onUnhandledRequest: "error" });
     vi.clearAllMocks();
     setupDefaultMsalMock();
 
     // Reset GraphService singleton
     (GraphService as any).instance = undefined;
     graphService = GraphService.getInstance();
-  });
-
-  afterEach(() => {
-    server.resetHandlers();
-    server.close();
   });
 
   describe("getInstance", () => {
