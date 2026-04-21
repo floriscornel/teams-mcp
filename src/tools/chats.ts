@@ -702,8 +702,14 @@ export function registerChatTools(
           } as ConversationMember,
         ];
 
-        // Add other users
-        // For oneOnOne chats, all members must have "owner" role
+        // Add other users.
+        // The Graph API requires "owner" for all members in both oneOnOne and
+        // group chats created via POST /chats. Passing "member" results in
+        // `The passed-in role 'member' is not supported.` (Graph validates at
+        // creation time — `member` is only a valid role for participants
+        // *added later* via POST /chats/{id}/members, not at creation.)
+        // See https://learn.microsoft.com/en-us/graph/api/chat-post — every
+        // example, group or oneOnOne, uses `roles: ["owner"]`.
         const isOneOnOne = userEmails.length === 1;
         for (const email of userEmails) {
           const user = (await client.api(`/users/${email}`).get()) as User;
@@ -712,7 +718,7 @@ export function registerChatTools(
             user: {
               id: user?.id,
             },
-            roles: [isOneOnOne ? "owner" : "member"],
+            roles: ["owner"],
           } as ConversationMember);
         }
 
