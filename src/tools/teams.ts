@@ -230,6 +230,7 @@ export function registerTeamsTools(
         const effectiveContentFormat = contentFormat ?? "markdown";
         const messageList: MessageSummary[] = response.value.map((message: ChatMessage) => ({
           id: message.id,
+          subject: message.subject,
           content: formatMessageContent(
             message.body?.content,
             effectiveContentFormat,
@@ -573,6 +574,7 @@ export function registerTeamsTools(
         const effectiveContentFormat = contentFormat ?? "markdown";
         const repliesList: MessageSummary[] = response.value.map((reply: ChatMessage) => ({
           id: reply.id,
+          subject: reply.subject,
           content: formatMessageContent(
             reply.body?.content,
             effectiveContentFormat,

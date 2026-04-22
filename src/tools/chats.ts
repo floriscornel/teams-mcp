@@ -287,6 +287,7 @@ export function registerChatTools(
         const effectiveContentFormat = contentFormat ?? "markdown";
         const messageList: MessageSummary[] = limitedMessages.map((message: ChatMessage) => ({
           id: message.id,
+          subject: message.subject,
           content: formatMessageContent(
             message.body?.content,
             effectiveContentFormat,
