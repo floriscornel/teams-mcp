@@ -103,6 +103,7 @@ export interface ReactionSummary {
 
 export interface MessageSummary {
   id?: string | undefined;
+  subject?: NullableOption<string> | undefined;
   content?: NullableOption<string> | undefined;
   from?: NullableOption<string> | undefined;
   createdDateTime?: NullableOption<string> | undefined;
