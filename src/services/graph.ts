@@ -2,8 +2,8 @@ import { type AccountInfo, PublicClientApplication } from "@azure/msal-node";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { cachePlugin } from "../msal-cache.js";
 
-const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
-const AUTHORITY = "https://login.microsoftonline.com/common";
+const CLIENT_ID = process.env.TEAMS_MCP_CLIENT_ID || "14d82eec-204b-4c2f-b7e8-296a70dab67e";
+const AUTHORITY = process.env.TEAMS_MCP_AUTHORITY || "https://login.microsoftonline.com/common";
 
 /** Scopes sufficient for read-only operations (no message sending, no file uploads). */
 export const READ_ONLY_SCOPES = [

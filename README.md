@@ -286,6 +286,23 @@ npx @floriscornel/teams-mcp@latest authenticate --read-only
 }
 ```
 
+**Custom app registration / tenant-specific authority:**
+
+```json
+{
+  "mcpServers": {
+    "teams-mcp": {
+      "command": "npx",
+      "args": ["-y", "@floriscornel/teams-mcp@latest"],
+      "env": {
+        "TEAMS_MCP_CLIENT_ID": "<org-app-registration-client-id>",
+        "TEAMS_MCP_AUTHORITY": "https://login.microsoftonline.com/<tenant-id>"
+      }
+    }
+  }
+}
+```
+
 ### Token Storage
 
 - Auth metadata is stored locally at `~/.msgraph-mcp-auth.json`
@@ -320,6 +337,8 @@ npx @floriscornel/teams-mcp@latest                           # Start MCP server 
 
 - `TEAMS_MCP_READ_ONLY=true` - Start the MCP server in read-only mode
 - `AUTH_TOKEN=<jwt>` - Use a pre-existing Microsoft Graph access token instead of MSAL login
+- `TEAMS_MCP_CLIENT_ID=<id>` - Use a custom Azure AD (Entra ID) app registration instead of the default Microsoft Graph CLI client
+- `TEAMS_MCP_AUTHORITY=<url>` - Use a tenant-specific authority (e.g. `https://login.microsoftonline.com/<tenant-id>`) instead of `/common`
 
 ### Read-Only Mode
 
