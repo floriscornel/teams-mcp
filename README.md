@@ -35,6 +35,7 @@ To use this MCP server in Cursor/Claude/VS Code, add the following configuration
 - Authentication status checking and logout support
 - Read-only mode with reduced scopes
 - Direct `AUTH_TOKEN` support for pre-issued Microsoft Graph access tokens
+- HTTP transport mode with MCP OAuth (Azure AD / Entra ID federation) for remote multi-user deployments
 
 ### 👥 User Management
 - Get current user information
@@ -318,8 +319,21 @@ npx @floriscornel/teams-mcp@latest                           # Start MCP server 
 
 ### Environment Variables
 
-- `TEAMS_MCP_READ_ONLY=true` - Start the MCP server in read-only mode
-- `AUTH_TOKEN=<jwt>` - Use a pre-existing Microsoft Graph access token instead of MSAL login
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `TEAMS_MCP_READ_ONLY` | No | `false` | Set to `true` to start the MCP server in read-only mode |
+| `AUTH_TOKEN` | No | — | Use a pre-existing Microsoft Graph JWT instead of MSAL login |
+| `TEAMS_MCP_TRANSPORT` | No | `stdio` | `stdio` to run locally, `http` to support Streamable HTTP |
+
+#### Streamable HTTP additional environment variables
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `TEAMS_MCP_BASE_URL` | Yes | — | Public URL of the server (e.g. `https://teams-mcp.example.com`) |
+| `TEAMS_MCP_CLIENT_ID` | Yes | — | Azure AD app registration client ID (web/confidential) |
+| `TEAMS_MCP_CLIENT_SECRET` | Yes | — | Azure AD app client secret |
+| `TEAMS_MCP_AUTHORITY` | Yes | — | Tenant-specific authority (e.g. `https://login.microsoftonline.com/{tenant-id}`) |
+| `TEAMS_MCP_PORT` | No | `3000` | HTTP listen port |
 
 ### Read-Only Mode
 
@@ -483,6 +497,93 @@ This MCP server is designed to work with AI assistants like Claude/Cursor/VS Cod
   }
 }
 ```
+
+## 🌐 HTTP Transport Mode (MCP OAuth)
+
+In addition to the default stdio transport (local subprocess mode), the server supports **Streamable HTTP transport** with MCP OAuth. This allows deploying the server as a remote HTTP service that multiple users can connect to from their own Cursor/Claude clients, each authenticated with their own Microsoft identity.
+
+### Architecture
+
+The MCP server acts as an **OAuth Authorization Server** toward MCP clients and an **OAuth client** toward Azure AD (Entra ID). Graph tokens are stored server-side; MCP clients only receive opaque session tokens.
+
+```
+Cursor / Claude  ◄──►  teams-mcp HTTP server  ◄──►  Azure AD (Entra ID)  ──►  Microsoft Graph API
+ (MCP client)           (OAuth AS + RS)              (upstream IdP)
+```
+
+1. MCP client discovers OAuth metadata and initiates authorization
+2. Server redirects user to Azure AD login
+3. User authenticates with their Microsoft account
+4. Server exchanges the Entra authorization code for Graph tokens
+5. Server issues an opaque MCP session token to the client
+6. MCP requests use the session token; server calls Graph API with the user's own Graph token
+
+### Azure AD App Registration
+
+Create a **web (confidential)** application registration in the Azure Portal:
+
+1. **Application type:** Web
+2. **Redirect URI:** `{TEAMS_MCP_BASE_URL}/oauth/callback`
+3. **Client secret:** Generate one under "Certificates & secrets"
+4. **API permissions:** Add the same Microsoft Graph **delegated** permissions as stdio mode (see [Required Microsoft Graph Permissions](#required-microsoft-graph-permissions))
+5. **Admin consent:** Grant admin consent for the tenant
+
+### Server Configuration
+
+```bash
+export TEAMS_MCP_TRANSPORT=http
+export TEAMS_MCP_BASE_URL=https://teams-mcp.example.com
+export TEAMS_MCP_CLIENT_ID=<your-azure-ad-app-client-id>
+export TEAMS_MCP_CLIENT_SECRET=<your-azure-ad-app-client-secret>
+export TEAMS_MCP_AUTHORITY=https://login.microsoftonline.com/<your-tenant-id>
+export TEAMS_MCP_PORT=3000          # optional, default 3000
+export TEAMS_MCP_READ_ONLY=false    # optional
+npx @floriscornel/teams-mcp@latest
+```
+
+### Docker Deployment
+
+```bash
+# Build and run with Docker Compose
+docker compose up -d
+
+# Or build manually
+docker build -t teams-mcp .
+docker run -p 3000:3000 \
+  -e TEAMS_MCP_TRANSPORT=http \
+  -e TEAMS_MCP_BASE_URL=https://teams-mcp.example.com \
+  -e TEAMS_MCP_CLIENT_ID=<client-id> \
+  -e TEAMS_MCP_CLIENT_SECRET=<client-secret> \
+  -e TEAMS_MCP_AUTHORITY=https://login.microsoftonline.com/<tenant-id> \
+  teams-mcp
+```
+
+A `docker-compose.yml` is included that reads configuration from environment variables or a `.env` file.
+
+### Cursor Client Configuration (Remote)
+
+Once the HTTP server is deployed, configure Cursor to connect as a remote MCP server:
+
+```json
+{
+  "mcpServers": {
+    "teams-mcp": {
+      "url": "https://teams-mcp.example.com/mcp"
+    }
+  }
+}
+```
+
+Cursor will automatically discover the OAuth metadata, prompt the user to authenticate with their Microsoft account, and establish a session.
+
+### Multi-User Support
+
+Each connecting client gets its own isolated session with:
+- Its own Microsoft Graph access and refresh tokens
+- Its own `McpServer` and `GraphService` instance
+- No shared state between users
+
+Session tokens are stored in memory. For horizontal scaling (multiple server instances behind a load balancer), replace the in-memory session store with a shared store (Redis, database).
 
 ## 🔒 Security
 
