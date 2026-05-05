@@ -19,8 +19,8 @@ import { registerTeamsTools } from "./tools/teams.js";
 import { registerUsersTools } from "./tools/users.js";
 
 // Microsoft Graph CLI app ID (default public client)
-const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
-const AUTHORITY = "https://login.microsoftonline.com/common";
+const CLIENT_ID = process.env.TEAMS_MCP_CLIENT_ID || "14d82eec-204b-4c2f-b7e8-296a70dab67e";
+const AUTHORITY = process.env.TEAMS_MCP_AUTHORITY || "https://login.microsoftonline.com/common";
 
 const AUTH_INFO_PATH = join(homedir(), ".msgraph-mcp-auth.json");
 
@@ -273,8 +273,10 @@ async function main() {
       );
       console.log("");
       console.log("Environment variables:");
-      console.log("  TEAMS_MCP_READ_ONLY=true  # Start MCP server in read-only mode");
-      console.log("  AUTH_TOKEN=<jwt>          # Use a pre-existing access token");
+      console.log("  TEAMS_MCP_READ_ONLY=true   # Start MCP server in read-only mode");
+      console.log("  AUTH_TOKEN=<jwt>           # Use a pre-existing access token");
+      console.log("  TEAMS_MCP_CLIENT_ID=<id>   # Use a custom Azure AD app registration");
+      console.log("  TEAMS_MCP_AUTHORITY=<url>  # Use a tenant-specific authority");
       return;
     case undefined:
       // No command = start MCP server
