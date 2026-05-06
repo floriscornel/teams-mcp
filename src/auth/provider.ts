@@ -144,7 +144,8 @@ export class EntraOAuthProvider implements OAuthServerProvider {
     }
 
     const pending = this._pendingAuthorizations.get(state);
-    if (!pending) {
+    if (!pending || Date.now() - pending.createdAt > PENDING_AUTH_TTL_MS) {
+      if (pending) this._pendingAuthorizations.delete(state);
       res
         .status(400)
         .json({ error: "invalid_state", error_description: "Unknown or expired state" });

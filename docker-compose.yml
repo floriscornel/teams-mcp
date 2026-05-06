@@ -3,7 +3,7 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${TEAMS_MCP_HOST_PORT:-3000}:${TEAMS_MCP_PORT:-3000}"
     environment:
       TEAMS_MCP_TRANSPORT: http
       TEAMS_MCP_BASE_URL: ${TEAMS_MCP_BASE_URL}

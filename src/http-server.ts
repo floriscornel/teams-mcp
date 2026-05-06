@@ -83,9 +83,15 @@ export async function startHttpServer(readOnly: boolean): Promise<void> {
   app.all("/mcp", bearerAuth, async (req, res) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
-    // For existing sessions, delegate to the stored transport
-    if (sessionId && sessions.has(sessionId)) {
-      const transport = sessions.get(sessionId) as StreamableHTTPServerTransport;
+    if (sessionId) {
+      const transport = sessions.get(sessionId);
+      if (!transport) {
+        res.status(404).json({
+          error: "invalid_session",
+          error_description: "Unknown session. Start a new session without mcp-session-id.",
+        });
+        return;
+      }
       await transport.handleRequest(req, res);
       return;
     }
