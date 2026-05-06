@@ -22,7 +22,11 @@ interface PendingAuthorization {
   mcpClientId: string;
   mcpState?: string | undefined;
   entraState: string;
+  createdAt: number;
 }
+
+const PENDING_AUTH_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const PENDING_AUTH_CLEANUP_INTERVAL_MS = 60 * 1000; // 1 minute
 
 export interface EntraOAuthProviderOptions {
   clientId: string;
@@ -49,6 +53,8 @@ export class EntraOAuthProvider implements OAuthServerProvider {
   private _pendingAuthorizations = new Map<string, PendingAuthorization>();
   private _options: EntraOAuthProviderOptions;
 
+  private _pendingAuthCleanupTimer: ReturnType<typeof setInterval>;
+
   constructor(options: EntraOAuthProviderOptions) {
     this._options = options;
     this._msalApp = new ConfidentialClientApplication({
@@ -58,6 +64,20 @@ export class EntraOAuthProvider implements OAuthServerProvider {
         authority: options.authority,
       },
     });
+    this._pendingAuthCleanupTimer = setInterval(
+      () => this.cleanupPendingAuthorizations(),
+      PENDING_AUTH_CLEANUP_INTERVAL_MS
+    );
+    this._pendingAuthCleanupTimer.unref();
+  }
+
+  private cleanupPendingAuthorizations(): void {
+    const now = Date.now();
+    for (const [key, pending] of this._pendingAuthorizations) {
+      if (now - pending.createdAt > PENDING_AUTH_TTL_MS) {
+        this._pendingAuthorizations.delete(key);
+      }
+    }
   }
 
   get clientsStore(): OAuthRegisteredClientsStore {
@@ -89,6 +109,7 @@ export class EntraOAuthProvider implements OAuthServerProvider {
       mcpClientId: client.client_id,
       mcpState: params.state,
       entraState,
+      createdAt: Date.now(),
     });
 
     const redirectUri = `${this._options.baseUrl}/oauth/callback`;
@@ -145,7 +166,7 @@ export class EntraOAuthProvider implements OAuthServerProvider {
       }
 
       const mcpAuthCode = randomUUID();
-      const graphRefreshToken = this.extractRefreshToken();
+      const graphRefreshToken = this.extractRefreshToken(result.account?.homeAccountId ?? "");
 
       this._sessionStore.storeAuthCode({
         mcpAuthCode,
@@ -178,15 +199,16 @@ export class EntraOAuthProvider implements OAuthServerProvider {
    * but stores it internally. For the confidential client flow we rely on MSAL's
    * internal cache for silent token renewal.
    */
-  private extractRefreshToken(): string {
+  private extractRefreshToken(homeAccountId: string): string {
     try {
       const cache = this._msalApp.getTokenCache().serialize();
       const parsed = JSON.parse(cache);
-      const refreshTokens = parsed?.RefreshToken;
-      if (refreshTokens) {
-        const firstKey = Object.keys(refreshTokens)[0];
-        if (firstKey) {
-          return refreshTokens[firstKey].secret ?? "";
+      const refreshTokens = parsed?.RefreshToken ?? {};
+      for (const entry of Object.values<{ home_account_id?: string; secret?: string }>(
+        refreshTokens
+      )) {
+        if (entry?.home_account_id === homeAccountId) {
+          return entry.secret ?? "";
         }
       }
     } catch {
@@ -246,28 +268,25 @@ export class EntraOAuthProvider implements OAuthServerProvider {
       throw new Error("Invalid or expired refresh token");
     }
 
-    let newGraphAccessToken = oldSession.graphAccessToken;
+    let newGraphAccessToken: string | undefined;
 
-    // Attempt to refresh the Graph token via MSAL silent acquisition
     if (oldSession.entraAccountId) {
-      try {
-        const accounts = await this._msalApp.getTokenCache().getAllAccounts();
-        const account = accounts.find((a) => a.homeAccountId === oldSession.entraAccountId);
-        if (account) {
-          const result = await this._msalApp.acquireTokenSilent({
-            scopes: this.graphScopes,
-            account,
-          });
-          if (result) {
-            newGraphAccessToken = result.accessToken;
-          }
-        }
-      } catch (err) {
-        console.error("Failed to refresh Graph token via MSAL:", err);
+      const accounts = await this._msalApp.getTokenCache().getAllAccounts();
+      const account = accounts.find((a) => a.homeAccountId === oldSession.entraAccountId);
+      if (account) {
+        const result = await this._msalApp.acquireTokenSilent({
+          scopes: this.graphScopes,
+          account,
+        });
+        newGraphAccessToken = result?.accessToken;
       }
     }
 
-    // Delete old session and create a new one
+    if (!newGraphAccessToken) {
+      this._sessionStore.deleteSession(oldSession.mcpAccessToken);
+      throw new Error("Graph token refresh failed; client must re-authenticate");
+    }
+
     this._sessionStore.deleteSession(oldSession.mcpAccessToken);
 
     const newSession = this._sessionStore.createSession({

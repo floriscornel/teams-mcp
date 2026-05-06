@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -10,6 +11,14 @@ import { registerChatTools } from "./tools/chats.js";
 import { registerSearchTools } from "./tools/search.js";
 import { registerTeamsTools } from "./tools/teams.js";
 import { registerUsersTools } from "./tools/users.js";
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
 
 function createSessionServer(graphToken: string, readOnly: boolean): McpServer {
   const server = new McpServer({
@@ -29,10 +38,10 @@ function createSessionServer(graphToken: string, readOnly: boolean): McpServer {
 }
 
 export async function startHttpServer(readOnly: boolean): Promise<void> {
-  const baseUrl = process.env.TEAMS_MCP_BASE_URL as string;
-  const clientId = process.env.TEAMS_MCP_CLIENT_ID as string;
-  const clientSecret = process.env.TEAMS_MCP_CLIENT_SECRET as string;
-  const authority = process.env.TEAMS_MCP_AUTHORITY as string;
+  const baseUrl = requireEnv("TEAMS_MCP_BASE_URL");
+  const clientId = requireEnv("TEAMS_MCP_CLIENT_ID");
+  const clientSecret = requireEnv("TEAMS_MCP_CLIENT_SECRET");
+  const authority = requireEnv("TEAMS_MCP_AUTHORITY");
   const port = Number.parseInt(process.env.TEAMS_MCP_PORT || "3000", 10);
 
   const provider = new EntraOAuthProvider({
@@ -99,25 +108,20 @@ export async function startHttpServer(readOnly: boolean): Promise<void> {
     const graphToken = authInfo.extra.graphToken as string;
 
     const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => crypto.randomUUID(),
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sid) => {
+        sessions.set(sid, transport);
+      },
     });
+
+    transport.onclose = () => {
+      const sid = transport.sessionId;
+      if (sid) sessions.delete(sid);
+    };
 
     const server = createSessionServer(graphToken, readOnly);
     // @ts-expect-error StreamableHTTPServerTransport satisfies Transport at runtime; TS strictness mismatch on optional onclose
     await server.connect(transport);
-
-    // Store session for future requests
-    const newSessionId = transport.sessionId;
-    if (newSessionId) {
-      sessions.set(newSessionId, transport);
-    }
-
-    // Clean up on close
-    transport.onclose = () => {
-      if (newSessionId) {
-        sessions.delete(newSessionId);
-      }
-    };
 
     await transport.handleRequest(req, res);
   });

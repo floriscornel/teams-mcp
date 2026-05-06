@@ -74,6 +74,10 @@ export class SessionStore {
   getSessionByRefreshToken(mcpRefreshToken: string): Session | undefined {
     for (const session of this.sessions.values()) {
       if (session.mcpRefreshToken === mcpRefreshToken) {
+        if (Date.now() > session.expiresAt) {
+          this.sessions.delete(session.mcpAccessToken);
+          return undefined;
+        }
         return session;
       }
     }
