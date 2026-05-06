@@ -702,8 +702,11 @@ export function registerChatTools(
           } as ConversationMember,
         ];
 
-        // Add other users
-        // For oneOnOne chats, all members must have "owner" role
+        // Add other users.
+        // Microsoft Graph requires roles=["owner"] for both oneOnOne and group
+        // chat members in the delegated-permission flow; passing ["member"]
+        // returns "The passed-in role 'member' is not supported."
+        // See: https://learn.microsoft.com/en-us/graph/api/chat-post
         const isOneOnOne = userEmails.length === 1;
         for (const email of userEmails) {
           const user = (await client.api(`/users/${email}`).get()) as User;
@@ -712,7 +715,7 @@ export function registerChatTools(
             user: {
               id: user?.id,
             },
-            roles: [isOneOnOne ? "owner" : "member"],
+            roles: ["owner"],
           } as ConversationMember);
         }
 
@@ -732,6 +735,72 @@ export function registerChatTools(
             {
               type: "text",
               text: `✅ Chat created successfully. Chat ID: ${newChat?.id}`,
+            },
+          ],
+        };
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        return {
+          content: [
+            {
+              type: "text",
+              text: `❌ Error: ${errorMessage}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // Add one or more members to an existing group chat
+  server.registerTool(
+    "add_chat_member",
+    {
+      title: "Add Chat Member",
+      description:
+        "Add one or more users to an existing group chat by email. Returns a per-user success/failure report so partial failures (e.g. unknown email) don't abort the batch.",
+      inputSchema: {
+        chatId: z.string().describe("Chat ID (e.g. 19:abc...@thread.v2)"),
+        userEmails: z
+          .array(z.string())
+          .describe("Array of user email addresses to add to the chat"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ chatId, userEmails }) => {
+      try {
+        const client = await graphService.getClient();
+        const results: string[] = [];
+
+        for (const email of userEmails) {
+          try {
+            const user = (await client.api(`/users/${email}`).get()) as User;
+            if (!user?.id) {
+              results.push(`❌ ${email}: not found in tenant`);
+              continue;
+            }
+            await client.api(`/chats/${chatId}/members`).post({
+              "@odata.type": "#microsoft.graph.aadUserConversationMember",
+              roles: ["owner"],
+              "user@odata.bind": `https://graph.microsoft.com/v1.0/users('${user.id}')`,
+            });
+            results.push(`✅ ${email}: added`);
+          } catch (err: unknown) {
+            const m = err instanceof Error ? err.message : String(err);
+            results.push(`❌ ${email}: ${m}`);
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `add_chat_member to ${chatId}\n\n${results.join("\n")}`,
             },
           ],
         };
