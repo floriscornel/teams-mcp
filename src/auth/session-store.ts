@@ -28,6 +28,7 @@ const AUTH_CODE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
 const CLEANUP_INTERVAL_MS = 60 * 1000; // run cleanup every minute
 
+/** In-memory store that manages MCP sessions and pending authorization codes with automatic TTL-based cleanup. */
 export class SessionStore {
   private sessions = new Map<string, Session>();
   private pendingCodes = new Map<string, PendingAuthCode>();
@@ -38,6 +39,7 @@ export class SessionStore {
     this.cleanupTimer.unref();
   }
 
+  /** Creates a new MCP session backed by the given Graph tokens and returns it. */
   createSession(params: {
     graphAccessToken: string;
     graphRefreshToken: string;
@@ -61,6 +63,7 @@ export class SessionStore {
     return session;
   }
 
+  /** Looks up a session by its MCP access token, returning undefined if expired or missing. */
   getSession(mcpAccessToken: string): Session | undefined {
     const session = this.sessions.get(mcpAccessToken);
     if (!session) return undefined;
@@ -71,6 +74,7 @@ export class SessionStore {
     return session;
   }
 
+  /** Finds a session by its MCP refresh token, returning undefined if expired or missing. */
   getSessionByRefreshToken(mcpRefreshToken: string): Session | undefined {
     for (const session of this.sessions.values()) {
       if (session.mcpRefreshToken === mcpRefreshToken) {
@@ -84,14 +88,17 @@ export class SessionStore {
     return undefined;
   }
 
+  /** Removes a session by its MCP access token. */
   deleteSession(mcpAccessToken: string): void {
     this.sessions.delete(mcpAccessToken);
   }
 
+  /** Stores a pending authorization code for later exchange. */
   storeAuthCode(pending: PendingAuthCode): void {
     this.pendingCodes.set(pending.mcpAuthCode, pending);
   }
 
+  /** Retrieves and deletes a pending authorization code, returning undefined if expired or missing. */
   consumeAuthCode(mcpAuthCode: string): PendingAuthCode | undefined {
     const pending = this.pendingCodes.get(mcpAuthCode);
     if (!pending) return undefined;
@@ -102,6 +109,7 @@ export class SessionStore {
     return pending;
   }
 
+  /** Retrieves a pending authorization code without consuming it, returning undefined if expired or missing. */
   getAuthCode(mcpAuthCode: string): PendingAuthCode | undefined {
     const pending = this.pendingCodes.get(mcpAuthCode);
     if (!pending) return undefined;
@@ -112,6 +120,7 @@ export class SessionStore {
     return pending;
   }
 
+  /** Purges expired sessions and authorization codes. */
   private cleanup(): void {
     const now = Date.now();
     for (const [key, session] of this.sessions) {
@@ -126,6 +135,7 @@ export class SessionStore {
     }
   }
 
+  /** Stops the periodic cleanup timer. */
   destroy(): void {
     clearInterval(this.cleanupTimer);
   }

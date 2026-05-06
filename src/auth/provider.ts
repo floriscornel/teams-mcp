@@ -218,6 +218,7 @@ export class EntraOAuthProvider implements OAuthServerProvider {
     return "";
   }
 
+  /** Returns the PKCE code challenge associated with the given authorization code. */
   async challengeForAuthorizationCode(
     _client: OAuthClientInformationFull,
     authorizationCode: string
@@ -229,6 +230,7 @@ export class EntraOAuthProvider implements OAuthServerProvider {
     return pending.codeChallenge;
   }
 
+  /** Exchanges an MCP authorization code for session tokens backed by the stored Graph token. */
   async exchangeAuthorizationCode(
     _client: OAuthClientInformationFull,
     authorizationCode: string,
@@ -258,6 +260,7 @@ export class EntraOAuthProvider implements OAuthServerProvider {
     };
   }
 
+  /** Rotates an MCP session by silently refreshing the underlying Graph token via MSAL. */
   async exchangeRefreshToken(
     _client: OAuthClientInformationFull,
     refreshToken: string,
@@ -311,6 +314,7 @@ export class EntraOAuthProvider implements OAuthServerProvider {
     };
   }
 
+  /** Validates an MCP access token and returns the associated auth info including the Graph token. */
   async verifyAccessToken(token: string): Promise<AuthInfo> {
     const session = this._sessionStore.getSession(token);
     if (!session) {
@@ -328,6 +332,7 @@ export class EntraOAuthProvider implements OAuthServerProvider {
     };
   }
 
+  /** Revokes an MCP access or refresh token by deleting the associated session. */
   async revokeToken(
     _client: OAuthClientInformationFull,
     request: OAuthTokenRevocationRequest

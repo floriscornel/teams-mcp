@@ -12,6 +12,7 @@ import { registerSearchTools } from "./tools/search.js";
 import { registerTeamsTools } from "./tools/teams.js";
 import { registerUsersTools } from "./tools/users.js";
 
+/** Reads a required environment variable or throws if it is not set. */
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -25,6 +26,7 @@ interface SessionEntry {
   graphService: GraphService;
 }
 
+/** Creates an MCP server instance wired to the Graph API using the given token. */
 function createSessionServer(
   graphToken: string,
   readOnly: boolean
@@ -45,6 +47,7 @@ function createSessionServer(
   return { server, graphService };
 }
 
+/** Starts the Express HTTP server with OAuth and MCP endpoints. */
 export async function startHttpServer(readOnly: boolean): Promise<void> {
   const baseUrl = requireEnv("TEAMS_MCP_BASE_URL");
   const clientId = requireEnv("TEAMS_MCP_CLIENT_ID");
