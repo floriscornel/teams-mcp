@@ -272,14 +272,18 @@ export class EntraOAuthProvider implements OAuthServerProvider {
     let newGraphAccessToken: string | undefined;
 
     if (oldSession.entraAccountId) {
-      const accounts = await this._msalApp.getTokenCache().getAllAccounts();
-      const account = accounts.find((a) => a.homeAccountId === oldSession.entraAccountId);
-      if (account) {
-        const result = await this._msalApp.acquireTokenSilent({
-          scopes: this.graphScopes,
-          account,
-        });
-        newGraphAccessToken = result?.accessToken;
+      try {
+        const accounts = await this._msalApp.getTokenCache().getAllAccounts();
+        const account = accounts.find((a) => a.homeAccountId === oldSession.entraAccountId);
+        if (account) {
+          const result = await this._msalApp.acquireTokenSilent({
+            scopes: this.graphScopes,
+            account,
+          });
+          newGraphAccessToken = result?.accessToken;
+        }
+      } catch (err) {
+        console.error("MSAL silent refresh failed:", err);
       }
     }
 

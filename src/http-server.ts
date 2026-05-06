@@ -20,7 +20,15 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function createSessionServer(graphToken: string, readOnly: boolean): McpServer {
+interface SessionEntry {
+  transport: StreamableHTTPServerTransport;
+  graphService: GraphService;
+}
+
+function createSessionServer(
+  graphToken: string,
+  readOnly: boolean
+): { server: McpServer; graphService: GraphService } {
   const server = new McpServer({
     name: "teams-mcp",
     version: "1.0.0",
@@ -34,7 +42,7 @@ function createSessionServer(graphToken: string, readOnly: boolean): McpServer {
   registerChatTools(server, graphService, readOnly);
   registerSearchTools(server, graphService, readOnly);
 
-  return server;
+  return { server, graphService };
 }
 
 export async function startHttpServer(readOnly: boolean): Promise<void> {
@@ -74,8 +82,7 @@ export async function startHttpServer(readOnly: boolean): Promise<void> {
     }
   });
 
-  // Per-session transport map
-  const sessions = new Map<string, StreamableHTTPServerTransport>();
+  const sessions = new Map<string, SessionEntry>();
 
   const bearerAuth = requireBearerAuth({ verifier: provider });
 
@@ -84,15 +91,19 @@ export async function startHttpServer(readOnly: boolean): Promise<void> {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (sessionId) {
-      const transport = sessions.get(sessionId);
-      if (!transport) {
+      const entry = sessions.get(sessionId);
+      if (!entry) {
         res.status(404).json({
           error: "invalid_session",
           error_description: "Unknown session. Start a new session without mcp-session-id.",
         });
         return;
       }
-      await transport.handleRequest(req, res);
+      const freshToken = req.auth?.extra?.graphToken as string | undefined;
+      if (freshToken) {
+        entry.graphService.setHttpToken(freshToken);
+      }
+      await entry.transport.handleRequest(req, res);
       return;
     }
 
@@ -113,10 +124,12 @@ export async function startHttpServer(readOnly: boolean): Promise<void> {
 
     const graphToken = authInfo.extra.graphToken as string;
 
+    const { server, graphService } = createSessionServer(graphToken, readOnly);
+
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sid) => {
-        sessions.set(sid, transport);
+        sessions.set(sid, { transport, graphService });
       },
     });
 
@@ -125,7 +138,6 @@ export async function startHttpServer(readOnly: boolean): Promise<void> {
       if (sid) sessions.delete(sid);
     };
 
-    const server = createSessionServer(graphToken, readOnly);
     // @ts-expect-error StreamableHTTPServerTransport satisfies Transport at runtime; TS strictness mismatch on optional onclose
     await server.connect(transport);
 
