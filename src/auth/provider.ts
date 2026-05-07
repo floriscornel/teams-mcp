@@ -273,6 +273,7 @@ export class EntraOAuthProvider implements OAuthServerProvider {
     }
 
     let newGraphAccessToken: string | undefined;
+    let newGraphRefreshToken = oldSession.graphRefreshToken;
 
     if (oldSession.entraAccountId) {
       try {
@@ -290,6 +291,24 @@ export class EntraOAuthProvider implements OAuthServerProvider {
       }
     }
 
+    // Fallback: use the stored refresh token directly when the MSAL cache is
+    // empty (e.g. after a server restart) and silent acquisition was not possible.
+    if (!newGraphAccessToken && oldSession.graphRefreshToken) {
+      try {
+        const result = await this._msalApp.acquireTokenByRefreshToken({
+          scopes: this.graphScopes,
+          refreshToken: oldSession.graphRefreshToken,
+        });
+        if (result) {
+          newGraphAccessToken = result.accessToken;
+          newGraphRefreshToken = this.extractRefreshToken(result.account?.homeAccountId ?? "")
+            || oldSession.graphRefreshToken;
+        }
+      } catch (err) {
+        console.error("MSAL refresh-token fallback failed:", err);
+      }
+    }
+
     if (!newGraphAccessToken) {
       this._sessionStore.deleteSession(oldSession.mcpAccessToken);
       throw new Error("Graph token refresh failed; client must re-authenticate");
@@ -299,7 +318,7 @@ export class EntraOAuthProvider implements OAuthServerProvider {
 
     const newSession = this._sessionStore.createSession({
       graphAccessToken: newGraphAccessToken,
-      graphRefreshToken: oldSession.graphRefreshToken,
+      graphRefreshToken: newGraphRefreshToken,
       entraAccountId: oldSession.entraAccountId,
       clientId: oldSession.clientId,
       scopes: this.graphScopes,

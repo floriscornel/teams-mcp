@@ -24,6 +24,7 @@ function requireEnv(name: string): string {
 interface SessionEntry {
   transport: StreamableHTTPServerTransport;
   graphService: GraphService;
+  mcpAccessToken: string;
 }
 
 /** Creates an MCP server instance wired to the Graph API using the given token. */
@@ -95,7 +96,7 @@ export async function startHttpServer(readOnly: boolean): Promise<void> {
 
     if (sessionId) {
       const entry = sessions.get(sessionId);
-      if (!entry) {
+      if (!entry || entry.mcpAccessToken !== req.auth?.token) {
         res.status(404).json({
           error: "invalid_session",
           error_description: "Unknown session. Start a new session without mcp-session-id.",
@@ -126,13 +127,14 @@ export async function startHttpServer(readOnly: boolean): Promise<void> {
     }
 
     const graphToken = authInfo.extra.graphToken as string;
+    const mcpAccessToken = authInfo.token;
 
     const { server, graphService } = createSessionServer(graphToken, readOnly);
 
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sid) => {
-        sessions.set(sid, { transport, graphService });
+        sessions.set(sid, { transport, graphService, mcpAccessToken });
       },
     });
 
