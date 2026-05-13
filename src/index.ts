@@ -10,8 +10,8 @@ import {
 } from "@azure/msal-node";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { cachePlugin } from "./msal-cache.js";
 import { startHttpServer } from "./http-server.js";
+import { cachePlugin } from "./msal-cache.js";
 import { FULL_SCOPES, GraphService, READ_ONLY_SCOPES } from "./services/graph.js";
 import { registerAuthTools } from "./tools/auth.js";
 import { registerChatTools } from "./tools/chats.js";
@@ -296,7 +296,9 @@ async function main() {
       console.log("  AUTH_TOKEN=<jwt>                 # Use a pre-existing access token");
       console.log("");
       console.log("HTTP transport mode (set TEAMS_MCP_TRANSPORT=http):");
-      console.log("  TEAMS_MCP_TRANSPORT=http         # Enable Streamable HTTP transport with MCP OAuth");
+      console.log(
+        "  TEAMS_MCP_TRANSPORT=http         # Enable Streamable HTTP transport with MCP OAuth"
+      );
       console.log("  TEAMS_MCP_BASE_URL=<url>         # Public URL of the server");
       console.log("  TEAMS_MCP_CLIENT_ID=<id>         # Azure AD app registration client ID");
       console.log("  TEAMS_MCP_CLIENT_SECRET=<secret> # Azure AD app client secret");

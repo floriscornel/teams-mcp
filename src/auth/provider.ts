@@ -301,8 +301,9 @@ export class EntraOAuthProvider implements OAuthServerProvider {
         });
         if (result) {
           newGraphAccessToken = result.accessToken;
-          newGraphRefreshToken = this.extractRefreshToken(result.account?.homeAccountId ?? "")
-            || oldSession.graphRefreshToken;
+          newGraphRefreshToken =
+            this.extractRefreshToken(result.account?.homeAccountId ?? "") ||
+            oldSession.graphRefreshToken;
         }
       } catch (err) {
         console.error("MSAL refresh-token fallback failed:", err);
