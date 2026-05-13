@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mockUser, server } from "../../test-utils/setup.js";
+import { mockUser } from "../../test-utils/setup.js";
 
 // Mock the msal-cache plugin
 vi.mock("../../msal-cache.js", () => ({
@@ -46,18 +46,12 @@ describe("GraphService", () => {
   let graphService: GraphService;
 
   beforeEach(() => {
-    server.listen({ onUnhandledRequest: "error" });
     vi.clearAllMocks();
     setupDefaultMsalMock();
 
     // Reset GraphService singleton
     (GraphService as any).instance = undefined;
     graphService = GraphService.getInstance();
-  });
-
-  afterEach(() => {
-    server.resetHandlers();
-    server.close();
   });
 
   describe("getInstance", () => {

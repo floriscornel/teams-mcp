@@ -6,6 +6,7 @@ vi.mock("fs/promises");
 vi.mock("@azure/identity");
 vi.mock("@modelcontextprotocol/sdk/server/mcp.js");
 vi.mock("@modelcontextprotocol/sdk/server/stdio.js");
+vi.mock("../http-server.js");
 
 // Mock console methods
 const mockConsoleLog = vi.fn();

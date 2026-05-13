@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.github
+.vscode
+coverage
+*.md
+src/**/*.test.ts
+src/**/*.spec.ts
+src/test-utils
+test-results.xml
+.env
+.env.*
+biome.json
+vitest.config.ts

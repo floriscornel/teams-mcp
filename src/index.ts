@@ -10,6 +10,7 @@ import {
 } from "@azure/msal-node";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { startHttpServer } from "./http-server.js";
 import { cachePlugin } from "./msal-cache.js";
 import { FULL_SCOPES, GraphService, READ_ONLY_SCOPES } from "./services/graph.js";
 import { registerAuthTools } from "./tools/auth.js";
@@ -238,6 +239,24 @@ async function main() {
 
   const readOnly = hasReadOnlyFlag(args) || process.env.TEAMS_MCP_READ_ONLY === "true";
 
+  // HTTP transport mode — start Express server with MCP OAuth
+  if (process.env.TEAMS_MCP_TRANSPORT === "http") {
+    const requiredVars = [
+      "TEAMS_MCP_BASE_URL",
+      "TEAMS_MCP_CLIENT_ID",
+      "TEAMS_MCP_CLIENT_SECRET",
+      "TEAMS_MCP_AUTHORITY",
+    ];
+    for (const v of requiredVars) {
+      if (!process.env[v]) {
+        console.error(`Missing required environment variable for HTTP mode: ${v}`);
+        process.exit(1);
+      }
+    }
+    await startHttpServer(readOnly);
+    return;
+  }
+
   // CLI commands
   switch (command) {
     case "authenticate":
@@ -273,8 +292,18 @@ async function main() {
       );
       console.log("");
       console.log("Environment variables:");
-      console.log("  TEAMS_MCP_READ_ONLY=true  # Start MCP server in read-only mode");
-      console.log("  AUTH_TOKEN=<jwt>          # Use a pre-existing access token");
+      console.log("  TEAMS_MCP_READ_ONLY=true        # Start MCP server in read-only mode");
+      console.log("  AUTH_TOKEN=<jwt>                 # Use a pre-existing access token");
+      console.log("");
+      console.log("HTTP transport mode (set TEAMS_MCP_TRANSPORT=http):");
+      console.log(
+        "  TEAMS_MCP_TRANSPORT=http         # Enable Streamable HTTP transport with MCP OAuth"
+      );
+      console.log("  TEAMS_MCP_BASE_URL=<url>         # Public URL of the server");
+      console.log("  TEAMS_MCP_CLIENT_ID=<id>         # Azure AD app registration client ID");
+      console.log("  TEAMS_MCP_CLIENT_SECRET=<secret> # Azure AD app client secret");
+      console.log("  TEAMS_MCP_AUTHORITY=<url>         # Azure AD authority URL (tenant-specific)");
+      console.log("  TEAMS_MCP_PORT=<port>            # HTTP listen port (default: 3000)");
       return;
     case undefined:
       // No command = start MCP server

@@ -144,6 +144,28 @@ export class GraphService {
     return result.accessToken;
   }
 
+  /**
+   * Set a pre-acquired Graph access token on this instance (used in HTTP mode
+   * where each session has its own user token).
+   */
+  setHttpToken(accessToken: string): void {
+    this.client = Client.initWithMiddleware({
+      authProvider: { getAccessToken: async () => accessToken },
+    });
+    this.isInitialized = true;
+  }
+
+  /**
+   * Create a new (non-singleton) GraphService bound to a specific Graph token.
+   * Used in HTTP transport mode where each MCP session maps to a different user.
+   */
+  static createForToken(accessToken: string, readOnly: boolean): GraphService {
+    const service = new GraphService();
+    service.readOnlyMode = readOnly;
+    service.setHttpToken(accessToken);
+    return service;
+  }
+
   async getAuthStatus(): Promise<AuthStatus> {
     await this.initializeClient();
 

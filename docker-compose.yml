@@ -1,0 +1,14 @@
+services:
+  teams-mcp:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${TEAMS_MCP_HOST_PORT:-3000}:${TEAMS_MCP_PORT:-3000}"
+    environment:
+      TEAMS_MCP_TRANSPORT: http
+      TEAMS_MCP_BASE_URL: ${TEAMS_MCP_BASE_URL}
+      TEAMS_MCP_CLIENT_ID: ${TEAMS_MCP_CLIENT_ID}
+      TEAMS_MCP_CLIENT_SECRET: ${TEAMS_MCP_CLIENT_SECRET}
+      TEAMS_MCP_AUTHORITY: ${TEAMS_MCP_AUTHORITY}
+      TEAMS_MCP_PORT: ${TEAMS_MCP_PORT:-3000}
+      TEAMS_MCP_READ_ONLY: ${TEAMS_MCP_READ_ONLY:-false}
