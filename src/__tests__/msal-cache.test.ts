@@ -7,6 +7,7 @@ vi.mock("node:fs", () => ({
   promises: {
     readFile: vi.fn(),
     writeFile: vi.fn(),
+    chmod: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -102,7 +103,10 @@ describe("MSAL Cache Plugin", () => {
       await cachePlugin.afterCacheAccess(cacheContext);
 
       expect(serializeMock).toHaveBeenCalled();
-      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, "utf8");
+      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
     });
 
     it("should not write cache data when cache has not changed", async () => {
@@ -142,7 +146,10 @@ describe("MSAL Cache Plugin", () => {
       await cachePlugin.afterCacheAccess(cacheContext);
 
       expect(serializeMock).toHaveBeenCalled();
-      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, "utf8");
+      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
       expect(consoleErrorSpy).toHaveBeenCalledWith("Warning: Could not write token cache:", error);
 
       consoleErrorSpy.mockRestore();

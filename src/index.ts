@@ -10,6 +10,7 @@ import {
 } from "@azure/msal-node";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { getAuthority, getClientId } from "./config.js";
 import { cachePlugin } from "./msal-cache.js";
 import { FULL_SCOPES, GraphService, READ_ONLY_SCOPES } from "./services/graph.js";
 import { registerAuthTools } from "./tools/auth.js";
@@ -18,15 +19,16 @@ import { registerSearchTools } from "./tools/search.js";
 import { registerTeamsTools } from "./tools/teams.js";
 import { registerUsersTools } from "./tools/users.js";
 
-// Microsoft Graph CLI app ID (default public client)
-const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
-const AUTHORITY = "https://login.microsoftonline.com/common";
-
 const AUTH_INFO_PATH = join(homedir(), ".msgraph-mcp-auth.json");
 
 /** Check whether CLI args contain --read-only. */
 function hasReadOnlyFlag(args: string[]): boolean {
   return args.includes("--read-only");
+}
+
+/** Check whether CLI args contain --interactive. */
+function hasInteractiveFlag(args: string[]): boolean {
+  return args.includes("--interactive");
 }
 
 /** Read the persisted auth info file (best-effort). */
@@ -39,22 +41,80 @@ async function readAuthInfo(): Promise<Record<string, unknown> | undefined> {
   }
 }
 
-// Authentication functions
+/** Persist auth result metadata (account, scopes, expiry) with owner-only perms. */
+async function saveAuthInfo(result: AuthenticationResult, clientId: string): Promise<void> {
+  const authInfo = {
+    clientId,
+    authenticated: true,
+    timestamp: new Date().toISOString(),
+    expiresAt: result.expiresOn?.toISOString(),
+    account: result.account?.username,
+    grantedScopes: result.scopes,
+  };
+  // 0o600 = owner-only; the file contains username + granted scopes (not the token itself,
+  // which lives in the MSAL cache file with its own 0o600 perms).
+  await fs.writeFile(AUTH_INFO_PATH, JSON.stringify(authInfo, null, 2), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  try {
+    await fs.chmod(AUTH_INFO_PATH, 0o600);
+  } catch {
+    // chmod unsupported (Windows) — writeFile mode was best-effort
+  }
+}
+
+/** Print uniform success banner after either auth flow completes. */
+function reportAuthSuccess(
+  result: AuthenticationResult,
+  modeLabel: string,
+  flowLabel: string
+): void {
+  console.log("\n✅ Authentication successful!");
+  console.log(`👤 Signed in as: ${result.account?.username || "Unknown"}`);
+  console.log(`🔒 Mode: ${modeLabel}`);
+  console.log(`🔁 Flow: ${flowLabel}`);
+  console.log(`💾 Credentials saved to: ${AUTH_INFO_PATH}`);
+  console.log("🔄 Refresh token cached for automatic renewal");
+}
+
+/** Map common AADSTS error codes to actionable messages, then exit non-zero. */
+function reportAuthError(error: unknown): never {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  if (errorMessage.includes("AADSTS50020")) {
+    console.error("\n❌ Authentication failed: User account not in tenant");
+  } else if (errorMessage.includes("AADSTS65001")) {
+    console.error("\n❌ Authentication failed: Admin consent required");
+    console.error("   Grant admin consent for the required permissions in Azure Portal");
+  } else if (errorMessage.includes("AADSTS530032") || errorMessage.includes("AADSTS530003")) {
+    console.error("\n❌ Authentication failed: Blocked by Conditional Access");
+    console.error("   Try --interactive (browser-based) flow instead of device code:");
+    console.error("   teams-mcp authenticate --interactive");
+  } else {
+    console.error("\n❌ Authentication failed:", errorMessage);
+  }
+  process.exit(1);
+}
+
+/** Device-code flow — prints user code + URL, polls until completion. */
 async function authenticate(readOnly: boolean) {
   const scopes = readOnly ? READ_ONLY_SCOPES : FULL_SCOPES;
   const modeLabel = readOnly ? "read-only" : "full access";
+  const clientId = getClientId();
 
   console.log("🔐 Microsoft Graph Authentication for MCP Server");
   console.log("=".repeat(50));
-  console.log(`Using Microsoft Graph CLI app (${modeLabel})`);
+  console.log(`Client ID: ${clientId}`);
+  console.log(`Authority: ${getAuthority()}`);
+  console.log(`Mode: ${modeLabel}`);
 
   try {
     console.log("\n📱 Using device code flow...");
 
     const msalConfig: Configuration = {
       auth: {
-        clientId: CLIENT_ID,
-        authority: AUTHORITY,
+        clientId,
+        authority: getAuthority(),
       },
       cache: {
         cachePlugin, // Use our custom file-based cache for refresh tokens
@@ -74,42 +134,64 @@ async function authenticate(readOnly: boolean) {
     });
 
     if (result) {
-      // Save authentication info (for quick status checks via CLI)
-      const authInfo = {
-        clientId: CLIENT_ID,
-        authenticated: true,
-        timestamp: new Date().toISOString(),
-        expiresAt: result.expiresOn?.toISOString(),
-        account: result.account?.username,
-        grantedScopes: result.scopes,
-      };
-
-      await fs.writeFile(AUTH_INFO_PATH, JSON.stringify(authInfo, null, 2));
-
-      console.log("\n✅ Authentication successful!");
-      console.log(`👤 Signed in as: ${result.account?.username || "Unknown"}`);
-      console.log(`🔒 Mode: ${modeLabel}`);
-      console.log(`💾 Credentials saved to: ${AUTH_INFO_PATH}`);
-      console.log("🔄 Refresh token cached for automatic renewal");
-      console.log("\n🚀 You can now use the MCP server in Cursor!");
-      console.log("   The server will automatically use these credentials.");
+      await saveAuthInfo(result, clientId);
+      reportAuthSuccess(result, modeLabel, "device code");
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    // Provide helpful error messages for common issues
-    if (errorMessage.includes("AADSTS50020")) {
-      console.error("\n❌ Authentication failed: User account not in tenant");
-    } else if (errorMessage.includes("AADSTS65001")) {
-      console.error("\n❌ Authentication failed: Admin consent required");
-      console.error("   Grant admin consent for the required permissions in Azure Portal");
-    } else {
-      console.error("\n❌ Authentication failed:", errorMessage);
-    }
-    process.exit(1);
+    reportAuthError(error);
   }
 }
 
+/** Interactive auth-code + PKCE flow with loopback redirect; opens browser. */
+async function authenticateInteractive(readOnly: boolean) {
+  const scopes = readOnly ? READ_ONLY_SCOPES : FULL_SCOPES;
+  const modeLabel = readOnly ? "read-only" : "full access";
+  const clientId = getClientId();
+
+  console.log("🔐 Microsoft Graph Authentication for MCP Server");
+  console.log("=".repeat(50));
+  console.log(`Client ID: ${clientId}`);
+  console.log(`Authority: ${getAuthority()}`);
+  console.log(`Mode: ${modeLabel}`);
+
+  try {
+    console.log("\n🌐 Using interactive auth-code flow (browser + loopback)...");
+
+    const msalConfig: Configuration = {
+      auth: {
+        clientId,
+        authority: getAuthority(),
+      },
+      cache: {
+        cachePlugin,
+      },
+    };
+
+    const client = new PublicClientApplication(msalConfig);
+
+    const result = await client.acquireTokenInteractive({
+      scopes,
+      openBrowser: async (url) => {
+        console.log(`\n🌐 Opening browser to: ${url}`);
+        const { default: open } = await import("open");
+        await open(url);
+      },
+      successTemplate:
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Authentication successful</title></head><body style='font-family:sans-serif;text-align:center;padding:2em;'><h1 style='color:#2e7d32;'>Authentication successful</h1><p>You can close this tab and return to the terminal.</p></body></html>",
+      errorTemplate:
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Authentication failed</title></head><body style='font-family:sans-serif;text-align:center;padding:2em;'><h1 style='color:#c62828;'>Authentication failed</h1><p>Check the terminal for details.</p></body></html>",
+    });
+
+    if (result) {
+      await saveAuthInfo(result, clientId);
+      reportAuthSuccess(result, modeLabel, "interactive (auth code + PKCE)");
+    }
+  } catch (error) {
+    reportAuthError(error);
+  }
+}
+
+/** Report persisted auth state (account, scope mode, token expiry) to stdout. */
 async function checkAuth() {
   try {
     const data = await fs.readFile(AUTH_INFO_PATH, "utf8");
@@ -160,6 +242,7 @@ async function checkAuth() {
   return false;
 }
 
+/** Remove persisted auth info + MSAL token cache files. */
 async function logout() {
   const CACHE_PATH = join(homedir(), ".teams-mcp-token-cache.json");
 
@@ -176,10 +259,10 @@ async function logout() {
   }
 
   console.log("✅ Successfully logged out");
-  console.log("🔄 Run 'npx @floriscornel/teams-mcp@latest authenticate' to re-authenticate");
+  console.log("🔄 Run 'teams-mcp authenticate' (or '--interactive') to re-authenticate");
 }
 
-// MCP Server setup
+/** Boot MCP server over stdio, registering tool groups; warns on scope mismatch. */
 async function startMcpServer(readOnly: boolean) {
   // Create MCP server
   const server = new McpServer({
@@ -231,18 +314,23 @@ async function startMcpServer(readOnly: boolean) {
   console.error(`Microsoft Graph MCP Server started${readOnly ? " (read-only mode)" : ""}`);
 }
 
-// Main function to handle both CLI and MCP server modes
+/** CLI entry point — dispatches subcommands or starts the MCP server. */
 async function main() {
   const args = process.argv.slice(2);
-  const command = args.find((arg) => arg !== "--read-only");
+  const command = args.find((arg) => arg !== "--read-only" && arg !== "--interactive");
 
   const readOnly = hasReadOnlyFlag(args) || process.env.TEAMS_MCP_READ_ONLY === "true";
+  const interactive = hasInteractiveFlag(args);
 
   // CLI commands
   switch (command) {
     case "authenticate":
     case "auth":
-      await authenticate(readOnly);
+      if (interactive) {
+        await authenticateInteractive(readOnly);
+      } else {
+        await authenticate(readOnly);
+      }
       return;
     case "check":
       await checkAuth();
@@ -257,24 +345,23 @@ async function main() {
       console.log("");
       console.log("Usage:");
       console.log(
-        "  npx @floriscornel/teams-mcp@latest authenticate              # Authenticate with full scopes"
+        "  teams-mcp authenticate                 # Device-code flow (default)"
       );
       console.log(
-        "  npx @floriscornel/teams-mcp@latest authenticate --read-only  # Authenticate with read-only scopes"
+        "  teams-mcp authenticate --interactive   # Browser auth-code flow (PKCE, loopback)"
       );
       console.log(
-        "  npx @floriscornel/teams-mcp@latest check                     # Check authentication status"
+        "  teams-mcp authenticate --read-only     # Authenticate with read-only scopes"
       );
-      console.log(
-        "  npx @floriscornel/teams-mcp@latest logout                    # Clear authentication"
-      );
-      console.log(
-        "  npx @floriscornel/teams-mcp@latest                           # Start MCP server (default)"
-      );
+      console.log("  teams-mcp check                        # Check authentication status");
+      console.log("  teams-mcp logout                       # Clear authentication");
+      console.log("  teams-mcp                              # Start MCP server (default)");
       console.log("");
       console.log("Environment variables:");
-      console.log("  TEAMS_MCP_READ_ONLY=true  # Start MCP server in read-only mode");
-      console.log("  AUTH_TOKEN=<jwt>          # Use a pre-existing access token");
+      console.log("  TEAMS_MCP_READ_ONLY=true      # Start MCP server in read-only mode");
+      console.log("  TEAMS_MCP_CLIENT_ID=<guid>    # Override default Entra app (client) ID");
+      console.log("  TEAMS_MCP_AUTHORITY=<url>     # Override default authority");
+      console.log("  AUTH_TOKEN=<jwt>              # Use a pre-existing access token");
       return;
     case undefined:
       // No command = start MCP server

@@ -1,9 +1,7 @@
 import { type AccountInfo, PublicClientApplication } from "@azure/msal-node";
 import { Client } from "@microsoft/microsoft-graph-client";
+import { getAuthority, getClientId } from "../config.js";
 import { cachePlugin } from "../msal-cache.js";
-
-const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
-const AUTHORITY = "https://login.microsoftonline.com/common";
 
 /** Scopes sufficient for read-only operations (no message sending, no file uploads). */
 export const READ_ONLY_SCOPES = [
@@ -84,8 +82,8 @@ export class GraphService {
       // Priority 2: MSAL with cached refresh token for automatic token renewal
       this.msalApp = new PublicClientApplication({
         auth: {
-          clientId: CLIENT_ID,
-          authority: AUTHORITY,
+          clientId: getClientId(),
+          authority: getAuthority(),
         },
         cache: {
           cachePlugin,
@@ -136,7 +134,7 @@ export class GraphService {
 
     if (!result) {
       throw new Error(
-        "Failed to acquire access token. Please re-authenticate: npx @floriscornel/teams-mcp@latest authenticate"
+        "Failed to acquire access token. Please re-authenticate: npx @floriscornel/teams-mcp@latest authenticate [--interactive]"
       );
     }
 
@@ -170,7 +168,7 @@ export class GraphService {
 
     if (!this.client) {
       throw new Error(
-        "Not authenticated. Please run the authentication CLI tool first: npx @floriscornel/teams-mcp@latest authenticate"
+        "Not authenticated. Please run the authentication CLI tool first: npx @floriscornel/teams-mcp@latest authenticate [--interactive]"
       );
     }
     return this.client;
