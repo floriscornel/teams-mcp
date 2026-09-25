@@ -39,7 +39,7 @@ describe("Chat Tools", () => {
     it("should register all chat tools", () => {
       registerChatTools(mockServer, mockGraphService, false);
 
-      expect(mockServer.registerTool).toHaveBeenCalledTimes(10);
+      expect(mockServer.registerTool).toHaveBeenCalledTimes(11);
       expect(mockServer.registerTool).toHaveBeenCalledWith(
         "list_chats",
         expect.any(Object),
@@ -57,6 +57,11 @@ describe("Chat Tools", () => {
       );
       expect(mockServer.registerTool).toHaveBeenCalledWith(
         "create_chat",
+        expect.any(Object),
+        expect.any(Function)
+      );
+      expect(mockServer.registerTool).toHaveBeenCalledWith(
+        "add_chat_member",
         expect.any(Object),
         expect.any(Function)
       );
@@ -1086,12 +1091,12 @@ describe("Chat Tools", () => {
           {
             "@odata.type": "#microsoft.graph.aadUserConversationMember",
             user: { id: "user1" },
-            roles: ["member"],
+            roles: ["owner"],
           },
           {
             "@odata.type": "#microsoft.graph.aadUserConversationMember",
             user: { id: "user2" },
-            roles: ["member"],
+            roles: ["owner"],
           },
         ],
       });
@@ -1156,6 +1161,63 @@ describe("Chat Tools", () => {
       });
 
       expect(result.content[0].text).toBe("❌ Error: Failed to create chat");
+    });
+  });
+
+  describe("add_chat_member", () => {
+    let addChatMemberHandler: (args?: any) => Promise<any>;
+
+    beforeEach(() => {
+      registerChatTools(mockServer, mockGraphService, false);
+      const call = vi
+        .mocked(mockServer.registerTool)
+        .mock.calls.find(([name]) => name === "add_chat_member");
+      addChatMemberHandler = call?.[2] as unknown as (args: any) => Promise<any>;
+    });
+
+    it("should add multiple members and report per-user success", async () => {
+      const mockApiChain = {
+        get: vi.fn().mockResolvedValueOnce({ id: "user1" }).mockResolvedValueOnce({ id: "user2" }),
+        post: vi.fn().mockResolvedValue({}),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await addChatMemberHandler({
+        chatId: "19:abc@thread.v2",
+        userEmails: ["a@example.com", "b@example.com"],
+      });
+
+      expect(mockApiChain.post).toHaveBeenCalledWith({
+        "@odata.type": "#microsoft.graph.aadUserConversationMember",
+        roles: ["owner"],
+        "user@odata.bind": "https://graph.microsoft.com/v1.0/users('user1')",
+      });
+      expect(mockApiChain.post).toHaveBeenCalledWith({
+        "@odata.type": "#microsoft.graph.aadUserConversationMember",
+        roles: ["owner"],
+        "user@odata.bind": "https://graph.microsoft.com/v1.0/users('user2')",
+      });
+      expect(result.content[0].text).toContain("✅ a@example.com: added");
+      expect(result.content[0].text).toContain("✅ b@example.com: added");
+    });
+
+    it("should continue on per-user failure and report it", async () => {
+      const mockApiChain = {
+        get: vi
+          .fn()
+          .mockRejectedValueOnce(new Error("User not found"))
+          .mockResolvedValueOnce({ id: "user2" }),
+        post: vi.fn().mockResolvedValue({}),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await addChatMemberHandler({
+        chatId: "19:abc@thread.v2",
+        userEmails: ["bad@example.com", "ok@example.com"],
+      });
+
+      expect(result.content[0].text).toContain("❌ bad@example.com: User not found");
+      expect(result.content[0].text).toContain("✅ ok@example.com: added");
     });
   });
 
