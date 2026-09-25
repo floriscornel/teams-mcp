@@ -45,15 +45,16 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/floriscornel/teams-mcp.git"
+    "url": "git+https://github.com/madubois08/teams-mcp.git"
   },
-  "homepage": "https://github.com/floriscornel/teams-mcp#readme",
+  "homepage": "https://github.com/madubois08/teams-mcp#readme",
   "bugs": {
-    "url": "https://github.com/floriscornel/teams-mcp/issues"
+    "url": "https://github.com/madubois08/teams-mcp/issues"
   },
   "dependencies": {
     "@azure/identity": "^4.13.1",
     "@azure/identity-cache-persistence": "^1.2.0",
+    "@azure/msal-node-extensions": "^1.0.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "@microsoft/microsoft-graph-types": "^2.43.1",
     "@modelcontextprotocol/sdk": "^1.28.0",
