@@ -26,10 +26,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: |
-          # Clean install to handle platform-specific binary issues
-          rm -rf node_modules package-lock.json
-          npm install
+        run: npm ci
 
       - name: Run linting and formatting
         run: |
