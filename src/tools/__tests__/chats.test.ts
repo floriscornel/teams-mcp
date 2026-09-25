@@ -1219,6 +1219,33 @@ describe("Chat Tools", () => {
       expect(result.content[0].text).toContain("❌ bad@example.com: User not found");
       expect(result.content[0].text).toContain("✅ ok@example.com: added");
     });
+
+    it("should report users that resolve without an id as not found", async () => {
+      const mockApiChain = {
+        get: vi.fn().mockResolvedValueOnce({ displayName: "No Id" }),
+        post: vi.fn().mockResolvedValue({}),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+
+      const result = await addChatMemberHandler({
+        chatId: "19:abc@thread.v2",
+        userEmails: ["ghost@example.com"],
+      });
+
+      expect(result.content[0].text).toContain("❌ ghost@example.com: not found in tenant");
+      expect(mockApiChain.post).not.toHaveBeenCalled();
+    });
+
+    it("should report unknown errors for non-Error throws", async () => {
+      (mockGraphService.getClient as ReturnType<typeof vi.fn>).mockRejectedValueOnce("boom");
+
+      const result = await addChatMemberHandler({
+        chatId: "19:abc@thread.v2",
+        userEmails: ["a@example.com"],
+      });
+
+      expect(result.content[0].text).toContain("Unknown error occurred");
+    });
   });
 
   describe("get_chat_messages reactions", () => {

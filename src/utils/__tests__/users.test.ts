@@ -54,6 +54,22 @@ describe("User Utilities", () => {
       expect(result).toEqual([]);
     });
 
+    it("should apply fallbacks for missing user fields", async () => {
+      mockClient.api.mockReturnValue({
+        get: vi.fn().mockResolvedValue({
+          value: [{ displayName: "Only Name" }, { id: "only-id" }, {}],
+        }),
+      });
+
+      const result = await searchUsers(mockGraphService, "partial", 10);
+
+      expect(result).toEqual([
+        { id: "", displayName: "Only Name", userPrincipalName: undefined },
+        { id: "only-id", displayName: "Unknown User", userPrincipalName: undefined },
+        { id: "", displayName: "Unknown User", userPrincipalName: undefined },
+      ]);
+    });
+
     it("should handle errors gracefully", async () => {
       mockClient.api.mockReturnValue({
         get: vi.fn().mockRejectedValue(new Error("Graph API error")),
@@ -102,6 +118,15 @@ describe("User Utilities", () => {
       const result = await getUserByEmail(mockGraphService, "nonexistent@company.com");
       expect(result).toBeNull();
     });
+
+    it("should fall back to Unknown User when displayName is missing", async () => {
+      mockClient.api.mockReturnValue({
+        get: vi.fn().mockResolvedValue({ id: "1" }),
+      });
+
+      const result = await getUserByEmail(mockGraphService, "no-name@company.com");
+      expect(result).toEqual({ id: "1", displayName: "Unknown User", userPrincipalName: undefined });
+    });
   });
 
   describe("getUserById", () => {
@@ -138,6 +163,21 @@ describe("User Utilities", () => {
 
       const result = await getUserById(mockGraphService, "nonexistent");
       expect(result).toBeNull();
+    });
+
+    it("should fall back to Unknown User when displayName is missing", async () => {
+      mockClient.api.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          get: vi.fn().mockResolvedValue({ id: "1", userPrincipalName: "u@company.com" }),
+        }),
+      });
+
+      const result = await getUserById(mockGraphService, "1");
+      expect(result).toEqual({
+        id: "1",
+        displayName: "Unknown User",
+        userPrincipalName: "u@company.com",
+      });
     });
   });
 
@@ -178,6 +218,30 @@ describe("User Utilities", () => {
         {
           mention: "john.doe@company.com",
           users: [{ id: "1", displayName: "John Doe", userPrincipalName: "john.doe@company.com" }],
+        },
+      ]);
+    });
+
+    it("should fall back to name search when email lookup fails", async () => {
+      // First api() call: getUserByEmail -> rejects; second: searchUsers -> resolves
+      mockClient.api
+        .mockReturnValueOnce({
+          get: vi.fn().mockRejectedValue(new Error("User not found")),
+        })
+        .mockReturnValueOnce({
+          get: vi.fn().mockResolvedValue({
+            value: [{ id: "2", displayName: "Fallback User", userPrincipalName: "f@company.com" }],
+          }),
+        });
+
+      const result = await parseMentions("Hello @missing.user@company.com", mockGraphService);
+
+      expect(result).toEqual([
+        {
+          mention: "missing.user@company.com",
+          users: [
+            { id: "2", displayName: "Fallback User", userPrincipalName: "f@company.com" },
+          ],
         },
       ]);
     });

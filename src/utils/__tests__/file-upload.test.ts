@@ -64,6 +64,10 @@ describe("extractGuidFromETag", () => {
     expect(result).toBeTruthy();
   });
 
+  it("should return the raw eTag when stripping yields an empty string", () => {
+    expect(extractGuidFromETag('"{},2"')).toBe('"{},2"');
+  });
+
   it("should split before stripping commas in fallback path", () => {
     // Without braces, should split on comma first, then strip quotes
     const eTag = '"some-guid,3"';
@@ -344,6 +348,31 @@ describe("uploadFileToChat", () => {
     expect(result.fileName).toBe("renamed.docx");
   });
 
+  it("should fall back to webUrl when upload result has no id", async () => {
+    mockClient.api.mockImplementation((path: string) => {
+      if (path === "/me/drive") {
+        return { get: vi.fn().mockResolvedValue({ id: "user-drive-id" }) };
+      }
+      if (path.includes("/content")) {
+        return {
+          header: vi.fn().mockReturnValue({
+            put: vi.fn().mockResolvedValue({
+              webUrl: "https://onedrive.com/chat-file.docx",
+              eTag: '"{DDDD-EEEE-FFFF},1"',
+            }),
+          }),
+        };
+      }
+      return { get: vi.fn(), post: vi.fn() };
+    });
+
+    const result = await uploadFileToChat(mockGraphService, "/tmp/file.txt");
+
+    expect(result.webUrl).toBe("https://onedrive.com/chat-file.docx");
+    const apiCalls = mockClient.api.mock.calls.map((c: any[]) => c[0]);
+    expect(apiCalls.some((p: string) => p.includes("/createLink"))).toBe(false);
+  });
+
   it("should use 'root' as parentItemId in upload path", async () => {
     await uploadFileToChat(mockGraphService, "/tmp/file.txt");
 
@@ -373,6 +402,33 @@ describe("uploadFileToChat", () => {
     await expect(uploadFileToChat(mockGraphService, "/tmp/file.pdf")).rejects.toThrow(
       "Failed to resolve user drive ID"
     );
+  });
+
+  it("should keep the uploaded webUrl when createLink returns no link URL", async () => {
+    mockClient.api.mockImplementation((path: string) => {
+      if (path === "/me/drive") {
+        return { get: vi.fn().mockResolvedValue({ id: "user-drive-id" }) };
+      }
+      if (path.includes("/content")) {
+        return {
+          header: vi.fn().mockReturnValue({
+            put: vi.fn().mockResolvedValue({
+              id: "uploaded-item-id",
+              webUrl: "https://onedrive.com/chat-file.docx",
+              eTag: '"{DDDD-EEEE-FFFF},1"',
+            }),
+          }),
+        };
+      }
+      if (path.includes("/createLink")) {
+        return { post: vi.fn().mockResolvedValue({ link: {} }) };
+      }
+      return { get: vi.fn(), post: vi.fn() };
+    });
+
+    const result = await uploadFileToChat(mockGraphService, "/tmp/file.txt");
+
+    expect(result.webUrl).toBe("https://onedrive.com/chat-file.docx");
   });
 
   it("should create organization sharing link and use its URL", async () => {
