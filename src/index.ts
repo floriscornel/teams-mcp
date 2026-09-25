@@ -8,40 +8,24 @@ import {
   type Configuration,
   PublicClientApplication,
 } from "@azure/msal-node";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { cachePlugin } from "./msal-cache.js";
-import { FULL_SCOPES, GraphService, READ_ONLY_SCOPES } from "./services/graph.js";
-import { registerAuthTools } from "./tools/auth.js";
-import { registerChatTools } from "./tools/chats.js";
-import { registerSearchTools } from "./tools/search.js";
-import { registerTeamsTools } from "./tools/teams.js";
-import { registerUsersTools } from "./tools/users.js";
+import { AUTH_INFO_PATH, createMcpServer } from "./server.js";
+import { resolveScopes } from "./services/graph.js";
 
 // Microsoft Graph CLI app ID (default public client)
-const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
-const AUTHORITY = "https://login.microsoftonline.com/common";
-
-const AUTH_INFO_PATH = join(homedir(), ".msgraph-mcp-auth.json");
+// Override with your own app registration via TEAMS_MCP_CLIENT_ID / TEAMS_MCP_TENANT_ID
+const CLIENT_ID = process.env.TEAMS_MCP_CLIENT_ID || "14d82eec-204b-4c2f-b7e8-296a70dab67e";
+const AUTHORITY = `https://login.microsoftonline.com/${process.env.TEAMS_MCP_TENANT_ID || "common"}`;
 
 /** Check whether CLI args contain --read-only. */
 function hasReadOnlyFlag(args: string[]): boolean {
   return args.includes("--read-only");
 }
 
-/** Read the persisted auth info file (best-effort). */
-async function readAuthInfo(): Promise<Record<string, unknown> | undefined> {
-  try {
-    const data = await fs.readFile(AUTH_INFO_PATH, "utf8");
-    return JSON.parse(data) as Record<string, unknown>;
-  } catch {
-    return undefined;
-  }
-}
-
 // Authentication functions
 async function authenticate(readOnly: boolean) {
-  const scopes = readOnly ? READ_ONLY_SCOPES : FULL_SCOPES;
+  const scopes = resolveScopes(readOnly);
   const modeLabel = readOnly ? "read-only" : "full access";
 
   console.log("🔐 Microsoft Graph Authentication for MCP Server");
@@ -181,49 +165,7 @@ async function logout() {
 
 // MCP Server setup
 async function startMcpServer(readOnly: boolean) {
-  // Create MCP server
-  const server = new McpServer({
-    name: "teams-mcp",
-    version: "1.0.0",
-  });
-
-  // Initialize Graph service (singleton)
-  const graphService = GraphService.getInstance();
-  graphService.readOnlyMode = readOnly;
-
-  // Detect scope mismatch: warn when switching from read-only → full mode
-  if (!readOnly && !process.env.AUTH_TOKEN) {
-    const authInfo = await readAuthInfo();
-    if (authInfo) {
-      const grantedScopes = authInfo.grantedScopes as string[] | undefined;
-      const hasWriteScopes = grantedScopes?.some(
-        (s: string) =>
-          s === "ChannelMessage.Send" ||
-          s === "ChannelMessage.ReadWrite" ||
-          s === "Chat.ReadWrite" ||
-          s === "Files.ReadWrite.All"
-      );
-      if (grantedScopes && !hasWriteScopes) {
-        console.error(
-          "⚠️  Warning: You authenticated with read-only scopes but the server is running in full mode."
-        );
-        console.error("   Write operations may fail. Re-authenticate without --read-only:");
-        console.error("   npx @floriscornel/teams-mcp@latest authenticate");
-      } else if (!grantedScopes) {
-        console.error(
-          "⚠️  Warning: Could not determine granted scopes. If you experience permission errors,"
-        );
-        console.error("   re-authenticate: npx @floriscornel/teams-mcp@latest authenticate");
-      }
-    }
-  }
-
-  // Register all tools (write tools are skipped when readOnly is true)
-  registerAuthTools(server, graphService, readOnly);
-  registerUsersTools(server, graphService, readOnly);
-  registerTeamsTools(server, graphService, readOnly);
-  registerChatTools(server, graphService, readOnly);
-  registerSearchTools(server, graphService, readOnly);
+  const server = await createMcpServer(readOnly);
 
   // Start server
   const transport = new StdioServerTransport();
