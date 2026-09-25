@@ -125,7 +125,11 @@ describe("User Utilities", () => {
       });
 
       const result = await getUserByEmail(mockGraphService, "no-name@company.com");
-      expect(result).toEqual({ id: "1", displayName: "Unknown User", userPrincipalName: undefined });
+      expect(result).toEqual({
+        id: "1",
+        displayName: "Unknown User",
+        userPrincipalName: undefined,
+      });
     });
   });
 
@@ -239,9 +243,7 @@ describe("User Utilities", () => {
       expect(result).toEqual([
         {
           mention: "missing.user@company.com",
-          users: [
-            { id: "2", displayName: "Fallback User", userPrincipalName: "f@company.com" },
-          ],
+          users: [{ id: "2", displayName: "Fallback User", userPrincipalName: "f@company.com" }],
         },
       ]);
     });

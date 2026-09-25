@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Isolated temporary home directory so CLI file operations run for real
