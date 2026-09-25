@@ -240,7 +240,8 @@ process.on("unhandledRejection", (reason, promise) => {
   process.exit(1);
 });
 
-main().catch((error) => {
+// Exposed for tests so they can await full CLI startup deterministically.
+export const mainPromise = main().catch((error) => {
   console.error("Failed to start:", error);
   process.exit(1);
 });

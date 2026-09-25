@@ -1,335 +1,197 @@
-import fs from "node:fs/promises";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { promises as fs } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock external dependencies
-vi.mock("fs/promises");
-vi.mock("@azure/identity");
-vi.mock("@modelcontextprotocol/sdk/server/mcp.js");
-vi.mock("@modelcontextprotocol/sdk/server/stdio.js");
+// Isolated temporary home directory so CLI file operations run for real
+// without touching the developer's actual credentials.
+const TMP_HOME = join(tmpdir(), "teams-mcp-index-test-home");
+const AUTH_INFO_PATH = join(TMP_HOME, ".msgraph-mcp-auth.json");
+const TOKEN_CACHE_PATH = join(TMP_HOME, ".teams-mcp-token-cache.json");
 
-// Mock console methods
-const mockConsoleLog = vi.fn();
-const mockConsoleError = vi.fn();
-const mockProcessExit = vi.fn();
-
-// Setup global mocks
-beforeEach(() => {
-  vi.clearAllMocks();
-
-  // Mock console methods
-  vi.spyOn(console, "log").mockImplementation(mockConsoleLog);
-  vi.spyOn(console, "error").mockImplementation(mockConsoleError);
-  vi.spyOn(process, "exit").mockImplementation(mockProcessExit as any);
-
-  // Reset process.argv
-  process.argv = ["node", "index.js"];
+vi.mock("node:os", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:os")>();
+  return {
+    ...actual,
+    homedir: () => TMP_HOME,
+  };
 });
 
-// Simple integration tests for basic functionality
-describe("MCP Server Integration", () => {
-  describe("CLI Commands", () => {
-    it("should handle help command", async () => {
-      process.argv = ["node", "index.js", "--help"];
+const msalMocks = vi.hoisted(() => ({
+  acquireTokenByDeviceCode: vi.fn(),
+}));
 
-      // Dynamically import to get fresh module state
-      await import("../index.js");
+vi.mock("@azure/msal-node", () => ({
+  PublicClientApplication: vi.fn(),
+}));
 
-      expect(mockConsoleLog).toHaveBeenCalledWith("Microsoft Graph MCP Server");
-      expect(mockConsoleLog).toHaveBeenCalledWith("Usage:");
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining("authenticate"));
+// The global test setup mocks node:fs with bare spies; these tests exercise
+// real CLI file operations in a temporary home, so restore the actual module.
+vi.mock("node:fs", async (importOriginal) => importOriginal());
+
+let consoleLog: ReturnType<typeof vi.spyOn>;
+let consoleError: ReturnType<typeof vi.spyOn>;
+
+beforeEach(async () => {
+  vi.resetModules();
+  await fs.mkdir(TMP_HOME, { recursive: true });
+  consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
+  consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+  // The global setup's afterEach calls vi.resetAllMocks(), which strips
+  // implementations registered in module factories — reapply it here.
+  // A `function` implementation is required so `new PublicClientApplication()` works.
+  const { PublicClientApplication } = await import("@azure/msal-node");
+  vi.mocked(PublicClientApplication).mockImplementation(function () {
+    return {
+      acquireTokenByDeviceCode: msalMocks.acquireTokenByDeviceCode,
+    } as never;
+  });
+});
+
+afterEach(async () => {
+  consoleLog.mockRestore();
+  consoleError.mockRestore();
+  await fs.rm(TMP_HOME, { recursive: true, force: true });
+});
+
+async function importIndex(argv: string[]) {
+  vi.resetModules();
+  process.argv = ["node", "index.js", ...argv];
+  const mod = await import("../index.js");
+  await mod.mainPromise;
+}
+
+function authInfoFixture(overrides: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    clientId: "test-client-id",
+    authenticated: true,
+    timestamp: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    account: "test@example.com",
+    grantedScopes: ["User.Read"],
+    ...overrides,
+  });
+}
+
+describe("MCP Server CLI", () => {
+  describe("help", () => {
+    it("prints usage information", async () => {
+      await importIndex(["--help"]);
+
+      expect(consoleLog).toHaveBeenCalledWith("Microsoft Graph MCP Server");
+      expect(consoleLog).toHaveBeenCalledWith("Usage:");
+      expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining("authenticate"));
+      expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining("TEAMS_MCP_READ_ONLY"));
     });
 
-    it.skip("should handle help variants", async () => {
-      // Skipping complex integration test - core functionality is tested in unit tests
-    });
+    it("handles the help command and flag variants", async () => {
+      await importIndex(["help"]);
+      expect(consoleLog).toHaveBeenCalledWith("Usage:");
 
-    it.skip("should handle unknown command", async () => {
-      // Skipping complex integration test - core functionality is tested in unit tests
-    });
-
-    describe("Authentication Commands", () => {
-      it.skip("should handle authenticate command", async () => {
-        process.argv = ["node", "index.js", "authenticate"];
-
-        // Mock DeviceCodeCredential
-        const mockCredential = {
-          authenticate: vi.fn().mockResolvedValue({
-            account: {
-              username: "test@example.com",
-              name: "Test User",
-            },
-            accessToken: "mock-token",
-            expiresOn: new Date(Date.now() + 3600000),
-          }),
-          getToken: vi.fn().mockResolvedValue({
-            token: "mock-token",
-            expiresOnTimestamp: Date.now() + 3600000,
-          }),
-        };
-
-        const { DeviceCodeCredential } = await import("@azure/identity");
-        vi.mocked(DeviceCodeCredential).mockImplementation(() => mockCredential as any);
-
-        await import("../index.js");
-
-        expect(mockConsoleLog).toHaveBeenCalledWith(
-          expect.stringContaining("Microsoft Graph Authentication")
-        );
-      });
-
-      it.skip("should handle auth alias", async () => {
-        process.argv = ["node", "index.js", "auth"];
-
-        const mockCredential = {
-          authenticate: vi.fn().mockResolvedValue({
-            account: {
-              username: "test@example.com",
-              name: "Test User",
-            },
-            accessToken: "mock-token",
-            expiresOn: new Date(Date.now() + 3600000),
-          }),
-          getToken: vi.fn().mockResolvedValue({
-            token: "mock-token",
-            expiresOnTimestamp: Date.now() + 3600000,
-          }),
-        };
-
-        const { DeviceCodeCredential } = await import("@azure/identity");
-        vi.mocked(DeviceCodeCredential).mockImplementation(() => mockCredential as any);
-
-        await import("../index.js");
-
-        expect(mockConsoleLog).toHaveBeenCalledWith(
-          expect.stringContaining("Microsoft Graph Authentication")
-        );
-      });
-
-      it.skip("should handle check command when authenticated", async () => {
-        process.argv = ["node", "index.js", "check"];
-
-        // Mock authenticated state
-        const authData = JSON.stringify({
-          clientId: "test-client-id",
-          authenticated: true,
-          timestamp: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 3600000).toISOString(),
-          token: "valid-token",
-        });
-
-        vi.mocked(fs.readFile).mockResolvedValue(authData);
-
-        await import("../index.js");
-
-        expect(mockConsoleLog).toHaveBeenCalledWith(
-          expect.stringContaining("Authentication Status")
-        );
-      });
-
-      it.skip("should handle check command when not authenticated", async () => {
-        process.argv = ["node", "index.js", "check"];
-
-        // Mock unauthenticated state
-        vi.mocked(fs.readFile).mockRejectedValue(new Error("File not found"));
-
-        await import("../index.js");
-
-        expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining("Not authenticated"));
-      });
-
-      it.skip("should handle logout command", async () => {
-        process.argv = ["node", "index.js", "logout"];
-
-        vi.mocked(fs.unlink).mockResolvedValue();
-
-        await import("../index.js");
-
-        expect(mockConsoleLog).toHaveBeenCalledWith(
-          expect.stringContaining("Logged out successfully")
-        );
-        expect(fs.unlink).toHaveBeenCalled();
-      });
-
-      it.skip("should handle logout command when no auth file exists", async () => {
-        process.argv = ["node", "index.js", "logout"];
-
-        vi.mocked(fs.unlink).mockRejectedValue(new Error("File not found"));
-
-        await import("../index.js");
-
-        expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining("Already logged out"));
-      });
+      consoleLog.mockClear();
+      await importIndex(["-h"]);
+      expect(consoleLog).toHaveBeenCalledWith("Usage:");
     });
   });
 
-  describe("MCP Server Mode", () => {
-    it.skip("should start MCP server when no command provided", async () => {
-      process.argv = ["node", "index.js"];
+  describe("unknown command", () => {
+    it("exits with an error", async () => {
+      const exit = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
 
-      const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-      const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
+      await importIndex(["bogus"]);
 
-      const mockServer = {
-        tool: vi.fn(),
-        connect: vi.fn(),
-      };
-      const mockTransport = {};
+      expect(consoleError).toHaveBeenCalledWith("Unknown command: bogus");
+      expect(exit).toHaveBeenCalledWith(1);
+      exit.mockRestore();
+    });
+  });
 
-      vi.mocked(McpServer).mockImplementation(() => mockServer as any);
-      vi.mocked(StdioServerTransport).mockImplementation(() => mockTransport as any);
+  describe("check", () => {
+    it("reports authentication details when credentials exist", async () => {
+      await fs.writeFile(
+        AUTH_INFO_PATH,
+        authInfoFixture({ grantedScopes: ["Chat.ReadWrite", "User.Read"] })
+      );
 
-      await import("../index.js");
+      await importIndex(["check"]);
 
-      expect(McpServer).toHaveBeenCalledWith({
-        name: "teams-mcp",
-        version: "1.0.0",
+      expect(consoleLog).toHaveBeenCalledWith("✅ Authentication found");
+      expect(consoleLog).toHaveBeenCalledWith("👤 Account: test@example.com");
+      expect(consoleLog).toHaveBeenCalledWith("🔒 Scope mode: full access");
+    });
+
+    it("reports read-only scope mode", async () => {
+      await fs.writeFile(
+        AUTH_INFO_PATH,
+        authInfoFixture({ grantedScopes: ["User.Read", "Chat.Read"] })
+      );
+
+      await importIndex(["check"]);
+
+      expect(consoleLog).toHaveBeenCalledWith("🔒 Scope mode: read-only");
+    });
+
+    it("reports not authenticated when no credentials exist", async () => {
+      await importIndex(["check"]);
+
+      expect(consoleLog).toHaveBeenCalledWith("❌ No authentication found");
+    });
+  });
+
+  describe("logout", () => {
+    it("removes the stored credentials", async () => {
+      await fs.writeFile(AUTH_INFO_PATH, authInfoFixture());
+      await fs.writeFile(TOKEN_CACHE_PATH, "{}");
+
+      await importIndex(["logout"]);
+
+      await expect(fs.access(AUTH_INFO_PATH)).rejects.toThrow();
+      await expect(fs.access(TOKEN_CACHE_PATH)).rejects.toThrow();
+      expect(consoleLog).toHaveBeenCalledWith("✅ Successfully logged out");
+    });
+
+    it("succeeds even when no credentials exist", async () => {
+      await importIndex(["logout"]);
+
+      expect(consoleLog).toHaveBeenCalledWith("✅ Successfully logged out");
+    });
+  });
+
+  describe("authenticate", () => {
+    it("runs the device code flow and stores credentials", async () => {
+      msalMocks.acquireTokenByDeviceCode.mockResolvedValue({
+        account: { username: "test@example.com" },
+        scopes: ["User.Read", "Chat.ReadWrite"],
+        expiresOn: new Date(Date.now() + 3_600_000),
       });
 
-      // Should register all tool categories
-      expect(mockServer.tool).toHaveBeenCalled();
-      expect(mockServer.connect).toHaveBeenCalledWith(mockTransport);
-      expect(mockConsoleError).toHaveBeenCalledWith("Microsoft Graph MCP Server started");
-    });
+      await importIndex(["authenticate"]);
 
-    it.skip("should register all expected tools", async () => {
-      process.argv = ["node", "index.js"];
+      expect(msalMocks.acquireTokenByDeviceCode).toHaveBeenCalledTimes(1);
+      expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining("Authentication successful"));
 
-      const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
-
-      const mockServer = {
-        tool: vi.fn(),
-        connect: vi.fn(),
-      };
-
-      vi.mocked(McpServer).mockImplementation(() => mockServer as any);
-
-      await import("../index.js");
-
-      // Verify that tool registration functions were called
-      // (We can't easily test the exact tools without more complex mocking)
-      expect(mockServer.tool).toHaveBeenCalled();
-    });
-  });
-
-  describe("Configuration", () => {
-    it.skip("should use correct client ID", async () => {
-      process.argv = ["node", "index.js", "authenticate"];
-
-      const { DeviceCodeCredential } = await import("@azure/identity");
-
-      await import("../index.js");
-
-      expect(DeviceCodeCredential).toHaveBeenCalledWith({
-        tenantId: "common",
-        clientId: "14d82eec-204b-4c2f-b7e8-296a70dab67e",
-        userPromptCallback: expect.any(Function),
-      });
-    });
-
-    it.skip("should use correct token path", async () => {
-      process.argv = ["node", "index.js", "check"];
-
-      vi.mocked(fs.readFile).mockRejectedValue(new Error("File not found"));
-
-      await import("../index.js");
-
-      expect(fs.readFile).toHaveBeenCalledWith(
-        expect.stringContaining(".msgraph-mcp-auth.json"),
-        "utf8"
-      );
-    });
-  });
-
-  describe("Error Handling", () => {
-    it.skip("should handle authentication errors gracefully", async () => {
-      process.argv = ["node", "index.js", "authenticate"];
-
-      const mockCredential = {
-        authenticate: vi.fn().mockRejectedValue(new Error("Auth failed")),
-      };
-
-      const { DeviceCodeCredential } = await import("@azure/identity");
-      vi.mocked(DeviceCodeCredential).mockImplementation(() => mockCredential as any);
-
-      await import("../index.js");
-
-      expect(mockConsoleError).toHaveBeenCalledWith(
-        expect.stringContaining("Authentication failed")
-      );
-    });
-
-    it.skip("should handle file system errors in check command", async () => {
-      process.argv = ["node", "index.js", "check"];
-
-      vi.mocked(fs.readFile).mockRejectedValue(new Error("Permission denied"));
-
-      await import("../index.js");
-
-      expect(mockConsoleError).toHaveBeenCalledWith(
-        expect.stringContaining("Error checking authentication")
-      );
-    });
-
-    it.skip("should handle file system errors in logout command", async () => {
-      process.argv = ["node", "index.js", "logout"];
-
-      vi.mocked(fs.unlink).mockRejectedValue(new Error("Permission denied"));
-
-      await import("../index.js");
-
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining("Error during logout"));
-    });
-  });
-
-  describe("Token Management", () => {
-    it.skip("should save token after successful authentication", async () => {
-      process.argv = ["node", "index.js", "authenticate"];
-
-      const mockToken = {
-        token: "access-token",
-        expiresOnTimestamp: Date.now() + 3600000,
-      };
-
-      const mockCredential = {
-        authenticate: vi.fn().mockResolvedValue({
-          account: {
-            username: "test@example.com",
-            name: "Test User",
-          },
-        }),
-        getToken: vi.fn().mockResolvedValue(mockToken),
-      };
-
-      const { DeviceCodeCredential } = await import("@azure/identity");
-      vi.mocked(DeviceCodeCredential).mockImplementation(() => mockCredential as any);
-
-      vi.mocked(fs.writeFile).mockResolvedValue();
-
-      await import("../index.js");
-
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining(".msgraph-mcp-auth.json"),
-        expect.stringContaining("access-token"),
-        "utf8"
-      );
-    });
-
-    it.skip("should handle expired tokens in check command", async () => {
-      process.argv = ["node", "index.js", "check"];
-
-      const expiredAuthData = JSON.stringify({
-        clientId: "test-client-id",
+      const stored = JSON.parse(await fs.readFile(AUTH_INFO_PATH, "utf8"));
+      expect(stored).toMatchObject({
         authenticated: true,
-        timestamp: new Date().toISOString(),
-        expiresAt: new Date(Date.now() - 3600000).toISOString(), // Expired
-        token: "expired-token",
+        account: "test@example.com",
+        grantedScopes: ["User.Read", "Chat.ReadWrite"],
+      });
+    });
+
+    it("passes read-only scopes when --read-only is given", async () => {
+      msalMocks.acquireTokenByDeviceCode.mockResolvedValue({
+        account: { username: "test@example.com" },
+        scopes: ["User.Read"],
+        expiresOn: new Date(Date.now() + 3_600_000),
       });
 
-      vi.mocked(fs.readFile).mockResolvedValue(expiredAuthData);
+      await importIndex(["authenticate", "--read-only"]);
 
-      await import("../index.js");
-
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining("Token has expired"));
+      const { scopes } = msalMocks.acquireTokenByDeviceCode.mock.calls[0][0];
+      expect(scopes).not.toContain("Chat.ReadWrite");
+      expect(scopes).not.toContain("ChannelMessage.Send");
+      expect(scopes).toContain("User.Read");
     });
   });
 });
