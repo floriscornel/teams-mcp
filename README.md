@@ -386,8 +386,8 @@ npx @floriscornel/teams-mcp@latest authenticate
 **Read-only tools (16):**
 `auth_status`, `get_current_user`, `search_users`, `get_user`, `list_teams`, `list_channels`, `get_channel_messages`, `get_channel_message_replies`, `list_team_members`, `search_users_for_mentions`, `download_message_hosted_content`, `list_chats`, `get_chat_messages`, `download_chat_hosted_content`, `search_messages`, `get_my_mentions`
 
-**Write tools disabled in read-only mode (14):**
-`send_channel_message`, `reply_to_channel_message`, `update_channel_message`, `delete_channel_message`, `send_file_to_channel`, `send_chat_message`, `create_chat`, `update_chat_message`, `delete_chat_message`, `send_file_to_chat`, `set_channel_message_reaction`, `set_chat_message_reaction`, `unset_channel_message_reaction`, `unset_chat_message_reaction`
+**Write tools disabled in read-only mode (15):**
+`send_channel_message`, `reply_to_channel_message`, `update_channel_message`, `delete_channel_message`, `send_file_to_channel`, `send_chat_message`, `create_chat`, `add_chat_member`, `update_chat_message`, `delete_chat_message`, `send_file_to_chat`, `set_channel_message_reaction`, `set_chat_message_reaction`, `unset_channel_message_reaction`, `unset_chat_message_reaction`
 
 ### Available MCP Tools
 
@@ -419,6 +419,7 @@ npx @floriscornel/teams-mcp@latest authenticate
 - `get_chat_messages` - Retrieve messages from a specific chat with pagination, filters, ordering, and `fetchAll`
 - `send_chat_message` - Send a message to a chat
 - `create_chat` - Create a new 1:1 or group chat
+- `add_chat_member` - Add one or more members to an existing group chat
 - `update_chat_message` - Edit a previously sent chat message
 - `delete_chat_message` - Soft delete a chat message
 - `set_chat_message_reaction` - Add a reaction to a chat message

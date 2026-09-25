@@ -15,6 +15,7 @@ const AUTH_TOKEN = (() => {
 
 /** All tool names registered in full mode. */
 const ALL_TOOL_NAMES = [
+  "add_chat_member",
   "auth_status",
   "create_chat",
   "delete_channel_message",
@@ -58,6 +59,7 @@ const READ_ONLY_TOOL_NAMES = ALL_TOOL_NAMES.filter(
       "send_file_to_channel",
       "send_chat_message",
       "create_chat",
+      "add_chat_member",
       "update_chat_message",
       "delete_chat_message",
       "send_file_to_chat",
