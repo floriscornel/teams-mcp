@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # jsdom 30+ requires a newer Node runtime than the Node 20 CI leg
+      - dependency-name: "jsdom"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types:

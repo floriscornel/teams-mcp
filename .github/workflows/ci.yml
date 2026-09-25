@@ -59,6 +59,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Test production install (no dev dependencies)
+        run: |
+          npm pack --pack-destination /tmp/pkg
+          mkdir /tmp/consumer && cd /tmp/consumer
+          npm init -y > /dev/null
+          npm install /tmp/pkg/*.tgz
+          node node_modules/@floriscornel/teams-mcp/dist/index.js --help
+          node node_modules/@floriscornel/teams-mcp/dist/index.js check
+
       - name: Test CLI functionality
         run: |
           node dist/index.js --help

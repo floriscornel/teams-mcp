@@ -1,6 +1,6 @@
 {
   "name": "@floriscornel/teams-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for Microsoft Graph Teams integration",
   "type": "module",
   "main": "dist/index.js",
@@ -60,6 +60,7 @@
     "@types/dompurify": "^3.2.0",
     "@types/marked": "^6.0.0",
     "dompurify": "^3.3.3",
+    "jsdom": "^29.1.1",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2",
     "zod": "^4.3.6"
@@ -71,7 +72,6 @@
     "@types/sinon": "^22.0.0",
     "@types/turndown": "^5.0.6",
     "@vitest/coverage-v8": "^5.0.1",
-    "jsdom": "^29.1.1",
     "marked": "^18.0.14",
     "msw": "^2.12.14",
     "nock": "^14.0.11",
