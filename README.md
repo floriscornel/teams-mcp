@@ -290,6 +290,7 @@ npx @floriscornel/teams-mcp@latest authenticate --read-only
 
 - Auth metadata is stored locally at `~/.msgraph-mcp-auth.json`
 - Token cache is stored locally at `~/.teams-mcp-token-cache.json`
+- Set `TEAMS_MCP_CACHE_PATH` to store the token cache at a custom path, which is useful for isolated or concurrent MCP runtimes.
 
 ## 🛠️ Usage
 
@@ -323,6 +324,7 @@ npx @floriscornel/teams-mcp@latest                           # Start MCP server 
 - `TEAMS_MCP_CLIENT_ID=<guid>` - Authenticate with your own Azure AD app registration instead of the default Microsoft Graph CLI app
 - `TEAMS_MCP_TENANT_ID=<guid-or-domain>` - Pin the authority to a specific tenant (e.g. `contoso.onmicrosoft.com`); required for single-tenant app registrations
 - `TEAMS_MCP_SCOPES="User.Read Chat.ReadWrite"` - Override the permission scopes requested during authentication (comma or space separated)
+- `TEAMS_MCP_CACHE_PATH=<path>` - Store the token cache at a custom path for isolated or concurrent MCP runtimes
 
 ### Using Your Own Azure AD App Registration
 
@@ -523,6 +525,7 @@ This MCP server is designed to work with AI assistants like Claude/Cursor/VS Cod
 - All authentication is handled through Microsoft's OAuth 2.0 flow or a caller-provided Microsoft Graph token
 - **Refresh token support**: Access tokens are automatically renewed using cached refresh tokens, so you don't need to re-authenticate every hour
 - Token cache is stored locally at `~/.teams-mcp-token-cache.json`
+- Set `TEAMS_MCP_CACHE_PATH` to store the token cache at a custom path
 - Auth metadata is stored locally at `~/.msgraph-mcp-auth.json`
 - Markdown content is sanitized before sending HTML to Teams
 - `AUTH_TOKEN` is validated to ensure it targets `https://graph.microsoft.com`
