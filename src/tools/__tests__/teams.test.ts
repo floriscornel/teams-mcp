@@ -1484,6 +1484,51 @@ describe("Teams Tools", () => {
       expect(tool.schema.replyId).toBeDefined();
     });
 
+    it("should download voice messages from audio card attachments", async () => {
+      const audioData = Buffer.from("\0\0\0\x18ftypmp42", "latin1");
+      const mockApiChain = {
+        get: vi.fn(),
+        responseType: vi.fn().mockReturnThis(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      mockApiChain.get
+        .mockResolvedValueOnce({
+          id: "msg-1",
+          body: { content: '<div><attachment id="att1"></attachment></div>' },
+          attachments: [
+            {
+              id: "att1",
+              contentType: "application/vnd.microsoft.card.audio",
+              content: JSON.stringify({
+                duration: "PT1M32S",
+                media: [
+                  {
+                    url: "https://graph.microsoft.com/v1.0/teams/t1/channels/c1/messages/msg-1/hostedContents/voice1/$value",
+                  },
+                ],
+              }),
+            },
+          ],
+        })
+        .mockResolvedValueOnce(audioData);
+
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("download_message_hosted_content");
+      const result = await tool.handler({
+        teamId: "t1",
+        channelId: "c1",
+        messageId: "msg-1",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/teams/t1/channels/c1/messages/msg-1/hostedContents/voice1/$value"
+      );
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.successCount).toBe(1);
+      expect(parsed.contents[0].contentType).toBe("audio/mp4");
+    });
+
     it("should use reply endpoint when replyId is provided", async () => {
       const replyMessage = {
         id: "reply-1",

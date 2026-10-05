@@ -1665,6 +1665,124 @@ describe("Chat Tools", () => {
       expect(parsed.contents[0].base64Data).toBe(Buffer.from(imageData).toString("base64"));
     });
 
+    it("should download voice messages from audio card attachments", async () => {
+      const audioData = Buffer.from("\0\0\0\x18ftypmp42", "latin1");
+      const mockApiChain = {
+        get: vi.fn(),
+        responseType: vi.fn().mockReturnThis(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      mockApiChain.get
+        .mockResolvedValueOnce({
+          id: "msg-1",
+          body: { content: '<div><attachment id="att1"></attachment></div>' },
+          attachments: [
+            {
+              id: "att1",
+              contentType: "application/vnd.microsoft.card.audio",
+              content: JSON.stringify({
+                duration: "PT1M32S",
+                media: [
+                  {
+                    url: "https://graph.microsoft.com/v1.0/chats/c/messages/m/hostedContents/voice1/$value",
+                  },
+                ],
+              }),
+            },
+          ],
+        })
+        .mockResolvedValueOnce(audioData);
+
+      const result = await downloadHandler({
+        chatId: "test-chat",
+        messageId: "msg-1",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/chats/test-chat/messages/msg-1/hostedContents/voice1/$value"
+      );
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.successCount).toBe(1);
+      expect(parsed.contents[0].id).toBe("voice1");
+      expect(parsed.contents[0].contentType).toBe("audio/mp4");
+    });
+
+    it("should report audio/mp4 when an audio card hostedContentId is requested", async () => {
+      const audioData = Buffer.from("\0\0\0\x18ftypmp42", "latin1");
+      const mockApiChain = {
+        get: vi.fn(),
+        responseType: vi.fn().mockReturnThis(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      mockApiChain.get
+        .mockResolvedValueOnce({
+          id: "msg-1",
+          body: { content: '<div><attachment id="att1"></attachment></div>' },
+          attachments: [
+            {
+              id: "att1",
+              contentType: "application/vnd.microsoft.card.audio",
+              content: JSON.stringify({
+                duration: "PT1M32S",
+                media: [
+                  {
+                    url: "https://graph.microsoft.com/v1.0/chats/c/messages/m/hostedContents/voice1/$value",
+                  },
+                ],
+              }),
+            },
+          ],
+        })
+        .mockResolvedValueOnce(audioData);
+
+      const result = await downloadHandler({
+        chatId: "test-chat",
+        messageId: "msg-1",
+        hostedContentId: "voice1",
+      });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/chats/test-chat/messages/msg-1/hostedContents/voice1/$value"
+      );
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.successCount).toBe(1);
+      expect(parsed.contents[0].id).toBe("voice1");
+      expect(parsed.contents[0].contentType).toBe("audio/mp4");
+    });
+
+    it("should percent-encode hosted content IDs in the request path", async () => {
+      const mockApiChain = {
+        get: vi.fn(),
+        responseType: vi.fn().mockReturnThis(),
+      };
+      mockClient.api = vi.fn().mockReturnValue(mockApiChain);
+      mockApiChain.get
+        .mockResolvedValueOnce({
+          id: "msg-1",
+          body: { content: "" },
+          attachments: [
+            {
+              contentType: "application/vnd.microsoft.card.audio",
+              content: JSON.stringify({
+                media: [
+                  {
+                    url: "https://graph.microsoft.com/v1.0/chats/c/messages/m/hostedContents/a+b%2Fc%3D/$value",
+                  },
+                ],
+              }),
+            },
+          ],
+        })
+        .mockResolvedValueOnce(Buffer.from("\0\0\0\x18ftypmp42", "latin1"));
+
+      const result = await downloadHandler({ chatId: "test-chat", messageId: "msg-1" });
+
+      expect(mockClient.api).toHaveBeenCalledWith(
+        "/chats/test-chat/messages/msg-1/hostedContents/a%2Bb%2Fc%3D/$value"
+      );
+      expect(JSON.parse(result.content[0].text).contents[0].id).toBe("a+b/c=");
+    });
+
     it("should handle specific hostedContentId", async () => {
       const imageData = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
       const mockApiChain = {

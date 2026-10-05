@@ -80,7 +80,7 @@ To use this MCP server in Cursor/Claude/VS Code, add the following configuration
 
 ### 📎 Media & Attachments
 - **Hosted Content**
-  - Download hosted content (images, files) from chat and channel messages
+  - Download hosted content (images, files, voice messages) from chat and channel messages
   - Access inline images and attachments shared in conversations
   - Optionally save hosted content directly to disk
 
@@ -427,8 +427,8 @@ npx @floriscornel/teams-mcp@latest authenticate
 - `send_file_to_chat` - Upload a local file and send it as a message to a chat
 
 #### Media Operations
-- `download_message_hosted_content` - Download hosted content (images, files) from channel messages
-- `download_chat_hosted_content` - Download hosted content (images, files) from chat messages
+- `download_message_hosted_content` - Download hosted content (images, files, voice messages) from channel messages
+- `download_chat_hosted_content` - Download hosted content (images, files, voice messages) from chat messages
 
 #### Search Operations
 - `search_messages` - Search across all Teams messages using KQL syntax

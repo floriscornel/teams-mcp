@@ -21,6 +21,7 @@ import {
   formatFileSize,
   uploadFileToChat,
 } from "../utils/file-upload.js";
+import { extractHostedContentRefs, resolveHostedContentType } from "../utils/hosted-content.js";
 import { formatMessageContent } from "../utils/html-to-markdown.js";
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml } from "../utils/users.js";
@@ -346,7 +347,7 @@ export function registerChatTools(
     {
       title: "Download Chat Hosted Content",
       description:
-        "Download hosted content (such as images) from a chat message. Returns the content as base64 encoded data along with metadata. Use this to retrieve images or other inline content embedded in chat messages.",
+        "Download hosted content (such as images and voice messages) from a chat message. Returns the content as base64 encoded data along with metadata. Use this to retrieve images or other inline content embedded in chat messages.",
       inputSchema: {
         chatId: z.string().describe("Chat ID"),
         messageId: z.string().describe("Message ID containing the hosted content"),
@@ -385,28 +386,18 @@ export function registerChatTools(
           };
         }
 
-        // Extract hosted content IDs from the message body
-        const bodyContent = message.body?.content || "";
-        const hostedContentRegex = /hostedContents\/([a-zA-Z0-9_=-]+)\/\$value|itemid="([^"]+)"/gi;
-        const matches: string[] = [];
-        let match: RegExpExecArray | null;
+        // Extract hosted content IDs from the message body and audio card attachments
+        const refs = extractHostedContentRefs(message);
+        const sourceById = new Map(refs.map((ref) => [ref.id, ref.source]));
 
-        // biome-ignore lint/suspicious/noAssignInExpressions: needed for regex extraction
-        while ((match = hostedContentRegex.exec(bodyContent)) !== null) {
-          const contentId = match[1] || match[2];
-          if (contentId && !matches.includes(contentId)) {
-            matches.push(contentId);
-          }
-        }
-
-        if (matches.length === 0) {
+        if (refs.length === 0) {
           return {
             content: [{ type: "text", text: "❌ Error: No hosted content found in this message." }],
             isError: true,
           };
         }
 
-        const contentIds = hostedContentId ? [hostedContentId] : matches;
+        const contentIds = hostedContentId ? [hostedContentId] : refs.map((ref) => ref.id);
 
         const results: Array<{
           id: string;
@@ -420,13 +411,18 @@ export function registerChatTools(
         for (const contentId of contentIds) {
           try {
             const response = await client
-              .api(`/chats/${chatId}/messages/${messageId}/hostedContents/${contentId}/$value`)
+              .api(
+                `/chats/${chatId}/messages/${messageId}/hostedContents/${encodeURIComponent(contentId)}/$value`
+              )
               .responseType("arraybuffer" as any)
               .get();
 
             const buffer = Buffer.from(response as ArrayBuffer);
             const base64Data = buffer.toString("base64");
-            const contentType = detectContentType(buffer);
+            const contentType = resolveHostedContentType(
+              detectContentType(buffer),
+              sourceById.get(contentId)
+            );
 
             const result: {
               id: string;

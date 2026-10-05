@@ -28,6 +28,7 @@ import {
   formatFileSize,
   uploadFileToChannel,
 } from "../utils/file-upload.js";
+import { extractHostedContentRefs, resolveHostedContentType } from "../utils/hosted-content.js";
 import { formatMessageContent } from "../utils/html-to-markdown.js";
 import { markdownToHtml } from "../utils/markdown.js";
 import { processMentionsInHtml, searchUsers, type UserInfo } from "../utils/users.js";
@@ -1005,7 +1006,7 @@ export function registerTeamsTools(
     {
       title: "Download Message Hosted Content",
       description:
-        "Download hosted content (such as images) from a Teams channel message. Returns the content as base64 encoded data along with metadata. Use this to retrieve images or other inline content embedded in messages.",
+        "Download hosted content (such as images and voice messages) from a Teams channel message. Returns the content as base64 encoded data along with metadata. Use this to retrieve images or other inline content embedded in messages.",
       inputSchema: {
         teamId: z.string().describe("Team ID"),
         channelId: z.string().describe("Channel ID"),
@@ -1058,21 +1059,11 @@ export function registerTeamsTools(
           };
         }
 
-        // Extract hosted content IDs from the message body
-        const bodyContent = message.body?.content || "";
-        const hostedContentRegex = /hostedContents\/([a-zA-Z0-9_=-]+)\/\$value|itemid="([^"]+)"/gi;
-        const matches: string[] = [];
-        let match: RegExpExecArray | null;
+        // Extract hosted content IDs from the message body and audio card attachments
+        const refs = extractHostedContentRefs(message);
+        const sourceById = new Map(refs.map((ref) => [ref.id, ref.source]));
 
-        // biome-ignore lint/suspicious/noAssignInExpressions: needed for regex extraction
-        while ((match = hostedContentRegex.exec(bodyContent)) !== null) {
-          const contentId = match[1] || match[2];
-          if (contentId && !matches.includes(contentId)) {
-            matches.push(contentId);
-          }
-        }
-
-        if (matches.length === 0) {
+        if (refs.length === 0) {
           return {
             content: [
               {
@@ -1085,7 +1076,7 @@ export function registerTeamsTools(
         }
 
         // If a specific hosted content ID is provided, filter to just that one
-        const contentIds = hostedContentId ? [hostedContentId] : matches;
+        const contentIds = hostedContentId ? [hostedContentId] : refs.map((ref) => ref.id);
 
         // Download each hosted content
         const results: Array<{
@@ -1101,8 +1092,8 @@ export function registerTeamsTools(
           try {
             // Build hosted content endpoint based on whether it's a reply or main message
             const hostedContentEndpoint = replyId
-              ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}/hostedContents/${contentId}/$value`
-              : `/teams/${teamId}/channels/${channelId}/messages/${messageId}/hostedContents/${contentId}/$value`;
+              ? `/teams/${teamId}/channels/${channelId}/messages/${messageId}/replies/${replyId}/hostedContents/${encodeURIComponent(contentId)}/$value`
+              : `/teams/${teamId}/channels/${channelId}/messages/${messageId}/hostedContents/${encodeURIComponent(contentId)}/$value`;
 
             // Get the hosted content binary data
             const response = await client
@@ -1115,7 +1106,10 @@ export function registerTeamsTools(
             const base64Data = buffer.toString("base64");
 
             // Determine content type from the response or default to image/png
-            const contentType = detectContentType(buffer);
+            const contentType = resolveHostedContentType(
+              detectContentType(buffer),
+              sourceById.get(contentId)
+            );
 
             const result: {
               id: string;

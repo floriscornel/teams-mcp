@@ -24,6 +24,21 @@ describe("detectContentType", () => {
     expect(detectContentType(buffer)).toBe("image/webp");
   });
 
+  it("should detect MP4 video", () => {
+    const buffer = Buffer.from("\0\0\0\x18ftypmp42", "latin1");
+    expect(detectContentType(buffer)).toBe("video/mp4");
+  });
+
+  it("should detect M4A audio", () => {
+    const buffer = Buffer.from("\0\0\0\x18ftypM4A ", "latin1");
+    expect(detectContentType(buffer)).toBe("audio/mp4");
+  });
+
+  it("should not report HEIC images as MP4", () => {
+    const buffer = Buffer.from("\0\0\0\x18ftypheic", "latin1");
+    expect(detectContentType(buffer)).toBe("application/octet-stream");
+  });
+
   it("should detect BMP", () => {
     const buffer = Buffer.from([0x42, 0x4d, 0x00, 0x00]);
     expect(detectContentType(buffer)).toBe("image/bmp");

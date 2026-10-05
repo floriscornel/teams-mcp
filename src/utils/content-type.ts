@@ -1,3 +1,6 @@
+const AUDIO_MP4_BRANDS = new Set(["M4A ", "M4B "]);
+const VIDEO_MP4_BRANDS = new Set(["isom", "iso2", "mp41", "mp42", "avc1", "dash"]);
+
 /**
  * Detects the MIME content type of a buffer by inspecting magic bytes.
  * Falls back to "application/octet-stream" if the format is not recognized.
@@ -45,6 +48,24 @@ export function detectContentType(buffer: Buffer): string {
   // PDF: 25 50 44 46
   if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
     return "application/pdf";
+  }
+
+  // ISO base media (MP4/M4A): "ftyp" box at offset 4, followed by the major brand
+  if (
+    buffer.length >= 12 &&
+    buffer[4] === 0x66 &&
+    buffer[5] === 0x74 &&
+    buffer[6] === 0x79 &&
+    buffer[7] === 0x70
+  ) {
+    const brand = buffer.toString("ascii", 8, 12);
+    if (AUDIO_MP4_BRANDS.has(brand)) {
+      return "audio/mp4";
+    }
+    // Other ftyp brands (e.g. HEIC/AVIF images) are left undetected
+    if (VIDEO_MP4_BRANDS.has(brand)) {
+      return "video/mp4";
+    }
   }
 
   return "application/octet-stream";
