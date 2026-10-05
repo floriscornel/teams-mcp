@@ -61,6 +61,7 @@ jobs:
 
       - name: Test production install (no dev dependencies)
         run: |
+          mkdir -p /tmp/pkg
           npm pack --pack-destination /tmp/pkg
           mkdir /tmp/consumer && cd /tmp/consumer
           npm init -y > /dev/null
