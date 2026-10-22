@@ -23,29 +23,95 @@ function hasReadOnlyFlag(args: string[]): boolean {
   return args.includes("--read-only");
 }
 
-// Authentication functions
-async function authenticate(readOnly: boolean) {
+/** Check whether CLI args contain --interactive. */
+function hasInteractiveFlag(args: string[]): boolean {
+  return args.includes("--interactive");
+}
+
+/** Print the auth banner and build an MSAL client backed by the file token cache. */
+function createAuthClient(readOnly: boolean) {
   const scopes = resolveScopes(readOnly);
   const modeLabel = readOnly ? "read-only" : "full access";
 
   console.log("🔐 Microsoft Graph Authentication for MCP Server");
   console.log("=".repeat(50));
-  console.log(`Using Microsoft Graph CLI app (${modeLabel})`);
+  console.log(`Client ID: ${CLIENT_ID}`);
+  console.log(`Authority: ${AUTHORITY}`);
+  console.log(`Mode: ${modeLabel}`);
+
+  const msalConfig: Configuration = {
+    auth: {
+      clientId: CLIENT_ID,
+      authority: AUTHORITY,
+    },
+    cache: {
+      cachePlugin, // Use our custom file-based cache for refresh tokens
+    },
+  };
+
+  return { client: new PublicClientApplication(msalConfig), scopes, modeLabel };
+}
+
+/** Persist auth result metadata (for quick status checks via CLI) with owner-only perms. */
+async function saveAuthInfo(result: AuthenticationResult): Promise<void> {
+  const authInfo = {
+    clientId: CLIENT_ID,
+    authenticated: true,
+    timestamp: new Date().toISOString(),
+    expiresAt: result.expiresOn?.toISOString(),
+    account: result.account?.username,
+    grantedScopes: result.scopes,
+  };
+
+  await fs.writeFile(AUTH_INFO_PATH, JSON.stringify(authInfo, null, 2), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  try {
+    // mode only applies on create; tighten files written by older versions too
+    await fs.chmod(AUTH_INFO_PATH, 0o600);
+  } catch {
+    // chmod is unsupported on some platforms (e.g. Windows) — best effort
+  }
+}
+
+/** Print the success banner shared by both auth flows. */
+function reportAuthSuccess(result: AuthenticationResult, modeLabel: string, flowLabel: string) {
+  console.log("\n✅ Authentication successful!");
+  console.log(`👤 Signed in as: ${result.account?.username || "Unknown"}`);
+  console.log(`🔒 Mode: ${modeLabel}`);
+  console.log(`🔁 Flow: ${flowLabel}`);
+  console.log(`💾 Credentials saved to: ${AUTH_INFO_PATH}`);
+  console.log("🔄 Refresh token cached for automatic renewal");
+  console.log("\n🚀 You can now use the MCP server in Cursor!");
+  console.log("   The server will automatically use these credentials.");
+}
+
+/** Map common AADSTS error codes to actionable messages, then exit non-zero. */
+function reportAuthError(error: unknown): never {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+
+  if (errorMessage.includes("AADSTS50020")) {
+    console.error("\n❌ Authentication failed: User account not in tenant");
+  } else if (errorMessage.includes("AADSTS65001")) {
+    console.error("\n❌ Authentication failed: Admin consent required");
+    console.error("   Grant admin consent for the required permissions in Azure Portal");
+  } else if (errorMessage.includes("AADSTS530032") || errorMessage.includes("AADSTS530003")) {
+    console.error("\n❌ Authentication failed: Blocked by Conditional Access");
+    console.error("   Try the browser-based flow instead of device code:");
+    console.error("   npx @floriscornel/teams-mcp@latest authenticate --interactive");
+  } else {
+    console.error("\n❌ Authentication failed:", errorMessage);
+  }
+  process.exit(1);
+}
+
+// Authentication functions
+async function authenticate(readOnly: boolean) {
+  const { client, scopes, modeLabel } = createAuthClient(readOnly);
 
   try {
     console.log("\n📱 Using device code flow...");
-
-    const msalConfig: Configuration = {
-      auth: {
-        clientId: CLIENT_ID,
-        authority: AUTHORITY,
-      },
-      cache: {
-        cachePlugin, // Use our custom file-based cache for refresh tokens
-      },
-    };
-
-    const client = new PublicClientApplication(msalConfig);
 
     const result: AuthenticationResult | null = await client.acquireTokenByDeviceCode({
       scopes,
@@ -58,39 +124,44 @@ async function authenticate(readOnly: boolean) {
     });
 
     if (result) {
-      // Save authentication info (for quick status checks via CLI)
-      const authInfo = {
-        clientId: CLIENT_ID,
-        authenticated: true,
-        timestamp: new Date().toISOString(),
-        expiresAt: result.expiresOn?.toISOString(),
-        account: result.account?.username,
-        grantedScopes: result.scopes,
-      };
-
-      await fs.writeFile(AUTH_INFO_PATH, JSON.stringify(authInfo, null, 2));
-
-      console.log("\n✅ Authentication successful!");
-      console.log(`👤 Signed in as: ${result.account?.username || "Unknown"}`);
-      console.log(`🔒 Mode: ${modeLabel}`);
-      console.log(`💾 Credentials saved to: ${AUTH_INFO_PATH}`);
-      console.log("🔄 Refresh token cached for automatic renewal");
-      console.log("\n🚀 You can now use the MCP server in Cursor!");
-      console.log("   The server will automatically use these credentials.");
+      await saveAuthInfo(result);
+      reportAuthSuccess(result, modeLabel, "device code");
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    reportAuthError(error);
+  }
+}
 
-    // Provide helpful error messages for common issues
-    if (errorMessage.includes("AADSTS50020")) {
-      console.error("\n❌ Authentication failed: User account not in tenant");
-    } else if (errorMessage.includes("AADSTS65001")) {
-      console.error("\n❌ Authentication failed: Admin consent required");
-      console.error("   Grant admin consent for the required permissions in Azure Portal");
-    } else {
-      console.error("\n❌ Authentication failed:", errorMessage);
-    }
-    process.exit(1);
+const SUCCESS_PAGE =
+  "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Authentication successful</title></head><body style='font-family:sans-serif;text-align:center;padding:2em;'><h1 style='color:#2e7d32;'>Authentication successful</h1><p>You can close this tab and return to the terminal.</p></body></html>";
+const ERROR_PAGE =
+  "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Authentication failed</title></head><body style='font-family:sans-serif;text-align:center;padding:2em;'><h1 style='color:#c62828;'>Authentication failed</h1><p>Check the terminal for details.</p></body></html>";
+
+/**
+ * Auth-code + PKCE flow with a loopback redirect. Goes through the browser, so
+ * Conditional Access can evaluate the device — works on tenants that block device code.
+ */
+async function authenticateInteractive(readOnly: boolean) {
+  const { client, scopes, modeLabel } = createAuthClient(readOnly);
+
+  try {
+    console.log("\n🌐 Using interactive auth-code flow (browser + loopback)...");
+
+    const result = await client.acquireTokenInteractive({
+      scopes,
+      openBrowser: async (url) => {
+        console.log(`\n🌐 Opening browser to: ${url}`);
+        const { default: open } = await import("open");
+        await open(url);
+      },
+      successTemplate: SUCCESS_PAGE,
+      errorTemplate: ERROR_PAGE,
+    });
+
+    await saveAuthInfo(result);
+    reportAuthSuccess(result, modeLabel, "interactive (auth code + PKCE)");
+  } catch (error) {
+    reportAuthError(error);
   }
 }
 
@@ -160,7 +231,9 @@ async function logout() {
   }
 
   console.log("✅ Successfully logged out");
-  console.log("🔄 Run 'npx @floriscornel/teams-mcp@latest authenticate' to re-authenticate");
+  console.log(
+    "🔄 Run 'npx @floriscornel/teams-mcp@latest authenticate [--interactive]' to re-authenticate"
+  );
 }
 
 // MCP Server setup
@@ -176,7 +249,7 @@ async function startMcpServer(readOnly: boolean) {
 // Main function to handle both CLI and MCP server modes
 async function main() {
   const args = process.argv.slice(2);
-  const command = args.find((arg) => arg !== "--read-only");
+  const command = args.find((arg) => arg !== "--read-only" && arg !== "--interactive");
 
   const readOnly = hasReadOnlyFlag(args) || process.env.TEAMS_MCP_READ_ONLY === "true";
 
@@ -184,7 +257,11 @@ async function main() {
   switch (command) {
     case "authenticate":
     case "auth":
-      await authenticate(readOnly);
+      if (hasInteractiveFlag(args)) {
+        await authenticateInteractive(readOnly);
+      } else {
+        await authenticate(readOnly);
+      }
       return;
     case "check":
       await checkAuth();
@@ -203,6 +280,9 @@ async function main() {
       );
       console.log(
         "  npx @floriscornel/teams-mcp@latest authenticate --read-only  # Authenticate with read-only scopes"
+      );
+      console.log(
+        "  npx @floriscornel/teams-mcp@latest authenticate --interactive # Authenticate via browser (auth code + PKCE)"
       );
       console.log(
         "  npx @floriscornel/teams-mcp@latest check                     # Check authentication status"

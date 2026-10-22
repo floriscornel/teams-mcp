@@ -7,6 +7,7 @@ vi.mock("node:fs", () => ({
   promises: {
     readFile: vi.fn(),
     writeFile: vi.fn(),
+    chmod: vi.fn(),
   },
 }));
 
@@ -102,7 +103,43 @@ describe("MSAL Cache Plugin", () => {
       await cachePlugin.afterCacheAccess(cacheContext);
 
       expect(serializeMock).toHaveBeenCalled();
-      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, "utf8");
+      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+    });
+
+    it("should restrict cache file permissions to the owner", async () => {
+      const cacheContext = {
+        cacheHasChanged: true,
+        tokenCache: {
+          serialize: vi.fn().mockReturnValue("{}"),
+        },
+      } as unknown as TokenCacheContext;
+
+      await cachePlugin.afterCacheAccess(cacheContext);
+
+      expect(fs.chmod).toHaveBeenCalledWith(CACHE_PATH, 0o600);
+    });
+
+    it("should tolerate chmod being unsupported", async () => {
+      vi.mocked(fs.chmod).mockRejectedValue(new Error("ENOSYS"));
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        // Intentionally empty to suppress console output during tests
+      });
+
+      const cacheContext = {
+        cacheHasChanged: true,
+        tokenCache: {
+          serialize: vi.fn().mockReturnValue("{}"),
+        },
+      } as unknown as TokenCacheContext;
+
+      await cachePlugin.afterCacheAccess(cacheContext);
+
+      expect(fs.writeFile).toHaveBeenCalled();
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
     });
 
     it("should not write cache data when cache has not changed", async () => {
@@ -142,7 +179,10 @@ describe("MSAL Cache Plugin", () => {
       await cachePlugin.afterCacheAccess(cacheContext);
 
       expect(serializeMock).toHaveBeenCalled();
-      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, "utf8");
+      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
       expect(consoleErrorSpy).toHaveBeenCalledWith("Warning: Could not write token cache:", error);
 
       consoleErrorSpy.mockRestore();

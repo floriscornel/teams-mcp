@@ -310,6 +310,7 @@ TEAMS_MCP_READ_ONLY=true node dist/index.js
 ```bash
 npx @floriscornel/teams-mcp@latest authenticate              # Authenticate with full scopes
 npx @floriscornel/teams-mcp@latest authenticate --read-only  # Authenticate with read-only scopes
+npx @floriscornel/teams-mcp@latest authenticate --interactive # Authenticate via browser (auth code + PKCE)
 npx @floriscornel/teams-mcp@latest check                     # Check authentication status
 npx @floriscornel/teams-mcp@latest logout                    # Clear authentication
 npx @floriscornel/teams-mcp@latest auth                      # Alias for authenticate
@@ -339,6 +340,8 @@ npx @floriscornel/teams-mcp@latest authenticate
 ```
 
 Set the same environment variables on the MCP server process so it can renew tokens with the same app identity.
+
+If your tenant blocks the device code flow through Conditional Access (`AADSTS530032`), add `http://localhost` as a *Mobile and desktop applications* redirect URI on the app and authenticate with `--interactive` instead. This runs the auth-code + PKCE flow in your browser, so Conditional Access can evaluate the device. See [ENTRA_SETUP.md](./ENTRA_SETUP.md) for a step-by-step guide.
 
 ### Admin Consent Troubleshooting
 

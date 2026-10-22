@@ -26,7 +26,14 @@ export const cachePlugin: ICachePlugin = {
     if (cacheContext.cacheHasChanged) {
       try {
         const data = cacheContext.tokenCache.serialize();
-        await fs.writeFile(CACHE_PATH, data, "utf8");
+        // Owner-only: the cache holds refresh tokens. mode only applies on create,
+        // so chmod tightens caches written by older versions too.
+        await fs.writeFile(CACHE_PATH, data, { encoding: "utf8", mode: 0o600 });
+        try {
+          await fs.chmod(CACHE_PATH, 0o600);
+        } catch {
+          // chmod is unsupported on some platforms (e.g. Windows) — best effort
+        }
       } catch (error) {
         console.error("Warning: Could not write token cache:", error);
       }
