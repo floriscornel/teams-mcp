@@ -93,7 +93,6 @@ describe("MSAL Cache Plugin", () => {
     it("should write cache data to an owner-only temp file and rename it over the cache", async () => {
       const mockSerializedData = '{"test": "serialized"}';
       const serializeMock = vi.fn().mockReturnValue(mockSerializedData);
-      const tmpPath = `${CACHE_PATH}.${process.pid}.tmp`;
 
       const cacheContext = {
         cacheHasChanged: true,
@@ -105,6 +104,9 @@ describe("MSAL Cache Plugin", () => {
       await cachePlugin.afterCacheAccess(cacheContext);
 
       expect(serializeMock).toHaveBeenCalled();
+      const tmpPath = vi.mocked(fs.writeFile).mock.calls[0][0] as string;
+      expect(tmpPath.startsWith(`${CACHE_PATH}.${process.pid}.`)).toBe(true);
+      expect(tmpPath.endsWith(".tmp")).toBe(true);
       expect(fs.writeFile).toHaveBeenCalledWith(tmpPath, mockSerializedData, {
         encoding: "utf8",
         mode: 0o600,
@@ -135,9 +137,28 @@ describe("MSAL Cache Plugin", () => {
 
       await cachePlugin.afterCacheAccess(cacheContext);
 
-      expect(fs.rm).toHaveBeenLastCalledWith(`${CACHE_PATH}.${process.pid}.tmp`, { force: true });
+      const tmpPath = vi.mocked(fs.writeFile).mock.calls[0][0];
+      expect(fs.rm).toHaveBeenCalledWith(tmpPath, { force: true });
       expect(consoleErrorSpy).toHaveBeenCalledWith("Warning: Could not write token cache:", error);
       consoleErrorSpy.mockRestore();
+    });
+
+    it("should use a separate temp file for each overlapping write", async () => {
+      const cacheContext = {
+        cacheHasChanged: true,
+        tokenCache: {
+          serialize: vi.fn().mockReturnValue("{}"),
+        },
+      } as unknown as TokenCacheContext;
+
+      await Promise.all([
+        cachePlugin.afterCacheAccess(cacheContext),
+        cachePlugin.afterCacheAccess(cacheContext),
+      ]);
+
+      const [first, second] = vi.mocked(fs.writeFile).mock.calls.map((call) => call[0]);
+      expect(first).not.toBe(second);
+      expect(fs.rm).not.toHaveBeenCalled();
     });
 
     it("should not write cache data when cache has not changed", async () => {

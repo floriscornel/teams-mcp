@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -11,9 +12,9 @@ const CACHE_PATH = join(homedir(), ".teams-mcp-token-cache.json");
  * the target: an existing file with looser permissions never receives the data.
  */
 export async function writeOwnerOnly(path: string, data: string): Promise<void> {
-  const tmpPath = `${path}.${process.pid}.tmp`;
-  // "wx" fails instead of reusing a leftover temp file that may have looser permissions
-  await fs.rm(tmpPath, { force: true });
+  // Unique per call, so overlapping writes in one process never share a temp file.
+  // "wx" makes sure the file is newly created with the owner-only mode.
+  const tmpPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
   try {
     await fs.writeFile(tmpPath, data, { encoding: "utf8", mode: 0o600, flag: "wx" });
     await fs.rename(tmpPath, path);
