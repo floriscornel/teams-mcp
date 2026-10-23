@@ -9,7 +9,7 @@ import {
   PublicClientApplication,
 } from "@azure/msal-node";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { cachePlugin } from "./msal-cache.js";
+import { cachePlugin, writeOwnerOnly } from "./msal-cache.js";
 import { AUTH_INFO_PATH, createMcpServer } from "./server.js";
 import { resolveScopes } from "./services/graph.js";
 
@@ -63,16 +63,7 @@ async function saveAuthInfo(result: AuthenticationResult): Promise<void> {
     grantedScopes: result.scopes,
   };
 
-  await fs.writeFile(AUTH_INFO_PATH, JSON.stringify(authInfo, null, 2), {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  try {
-    // mode only applies on create; tighten files written by older versions too
-    await fs.chmod(AUTH_INFO_PATH, 0o600);
-  } catch {
-    // chmod is unsupported on some platforms (e.g. Windows) — best effort
-  }
+  await writeOwnerOnly(AUTH_INFO_PATH, JSON.stringify(authInfo, null, 2));
 }
 
 /** Print the success banner shared by both auth flows. */
@@ -88,7 +79,7 @@ function reportAuthSuccess(result: AuthenticationResult, modeLabel: string, flow
 }
 
 /** Map common AADSTS error codes to actionable messages, then exit non-zero. */
-function reportAuthError(error: unknown): never {
+function reportAuthError(error: unknown, interactive: boolean): never {
   const errorMessage = error instanceof Error ? error.message : String(error);
 
   if (errorMessage.includes("AADSTS50020")) {
@@ -98,8 +89,14 @@ function reportAuthError(error: unknown): never {
     console.error("   Grant admin consent for the required permissions in Azure Portal");
   } else if (errorMessage.includes("AADSTS530032") || errorMessage.includes("AADSTS530003")) {
     console.error("\n❌ Authentication failed: Blocked by Conditional Access");
-    console.error("   Try the browser-based flow instead of device code:");
-    console.error("   npx @floriscornel/teams-mcp@latest authenticate --interactive");
+    if (interactive) {
+      // The browser flow is already the fallback; the tenant's policy is the blocker
+      console.error("   Check the Entra sign-in logs or ask your administrator which policy");
+      console.error("   applies (for example a device compliance requirement)");
+    } else {
+      console.error("   Try the browser-based flow instead of device code:");
+      console.error("   npx @floriscornel/teams-mcp@latest authenticate --interactive");
+    }
   } else {
     console.error("\n❌ Authentication failed:", errorMessage);
   }
@@ -128,7 +125,7 @@ async function authenticate(readOnly: boolean) {
       reportAuthSuccess(result, modeLabel, "device code");
     }
   } catch (error) {
-    reportAuthError(error);
+    reportAuthError(error, false);
   }
 }
 
@@ -161,7 +158,7 @@ async function authenticateInteractive(readOnly: boolean) {
     await saveAuthInfo(result);
     reportAuthSuccess(result, modeLabel, "interactive (auth code + PKCE)");
   } catch (error) {
-    reportAuthError(error);
+    reportAuthError(error, true);
   }
 }
 

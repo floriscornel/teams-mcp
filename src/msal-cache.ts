@@ -6,6 +6,28 @@ import type { ICachePlugin, TokenCacheContext } from "@azure/msal-node";
 const CACHE_PATH = join(homedir(), ".teams-mcp-token-cache.json");
 
 /**
+ * Write a file that only its owner can read. writeFile's mode only applies when
+ * the file is created, so the data goes to a fresh temp file that is renamed over
+ * the target: an existing file with looser permissions never receives the data.
+ */
+export async function writeOwnerOnly(path: string, data: string): Promise<void> {
+  const tmpPath = `${path}.${process.pid}.tmp`;
+  // "wx" fails instead of reusing a leftover temp file that may have looser permissions
+  await fs.rm(tmpPath, { force: true });
+  try {
+    await fs.writeFile(tmpPath, data, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    await fs.rename(tmpPath, path);
+  } catch (error) {
+    try {
+      await fs.rm(tmpPath, { force: true });
+    } catch {
+      // Best effort: the original error is the one worth reporting
+    }
+    throw error;
+  }
+}
+
+/**
  * Custom file-based cache plugin for MSAL Node
  * Stores tokens (including refresh tokens) in a JSON file
  */
@@ -25,15 +47,8 @@ export const cachePlugin: ICachePlugin = {
   async afterCacheAccess(cacheContext: TokenCacheContext): Promise<void> {
     if (cacheContext.cacheHasChanged) {
       try {
-        const data = cacheContext.tokenCache.serialize();
-        // Owner-only: the cache holds refresh tokens. mode only applies on create,
-        // so chmod tightens caches written by older versions too.
-        await fs.writeFile(CACHE_PATH, data, { encoding: "utf8", mode: 0o600 });
-        try {
-          await fs.chmod(CACHE_PATH, 0o600);
-        } catch {
-          // chmod is unsupported on some platforms (e.g. Windows) — best effort
-        }
+        // Owner-only: the cache holds refresh tokens.
+        await writeOwnerOnly(CACHE_PATH, cacheContext.tokenCache.serialize());
       } catch (error) {
         console.error("Warning: Could not write token cache:", error);
       }

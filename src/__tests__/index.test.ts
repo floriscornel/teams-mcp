@@ -252,6 +252,30 @@ describe("MCP Server CLI", () => {
       exit.mockRestore();
     });
 
+    it("suggests --interactive when Conditional Access blocks the device code flow", async () => {
+      const exit = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+      msalMocks.acquireTokenByDeviceCode.mockRejectedValue(new Error("AADSTS530032: blocked"));
+
+      await importIndex(["authenticate"]);
+
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("--interactive"));
+      exit.mockRestore();
+    });
+
+    it("points to the tenant policy when Conditional Access blocks the interactive flow", async () => {
+      const exit = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+      msalMocks.acquireTokenInteractive.mockRejectedValue(new Error("AADSTS530032: blocked"));
+
+      await importIndex(["authenticate", "--interactive"]);
+
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining("Blocked by Conditional Access")
+      );
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("sign-in logs"));
+      expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("--interactive"));
+      exit.mockRestore();
+    });
+
     it("reports unknown errors from the interactive flow and exits", async () => {
       const exit = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
       msalMocks.acquireTokenInteractive.mockRejectedValue("user cancelled");

@@ -10,6 +10,7 @@
   "files": [
     "dist/**/*",
     "README.md",
+    "ENTRA_SETUP.md",
     "package.json"
   ],
   "publishConfig": {

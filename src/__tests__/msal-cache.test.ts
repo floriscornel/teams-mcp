@@ -7,7 +7,8 @@ vi.mock("node:fs", () => ({
   promises: {
     readFile: vi.fn(),
     writeFile: vi.fn(),
-    chmod: vi.fn(),
+    rename: vi.fn(),
+    rm: vi.fn(),
   },
 }));
 
@@ -89,9 +90,10 @@ describe("MSAL Cache Plugin", () => {
   });
 
   describe("afterCacheAccess", () => {
-    it("should serialize and write cache data when cache has changed", async () => {
+    it("should write cache data to an owner-only temp file and rename it over the cache", async () => {
       const mockSerializedData = '{"test": "serialized"}';
       const serializeMock = vi.fn().mockReturnValue(mockSerializedData);
+      const tmpPath = `${CACHE_PATH}.${process.pid}.tmp`;
 
       const cacheContext = {
         cacheHasChanged: true,
@@ -103,27 +105,23 @@ describe("MSAL Cache Plugin", () => {
       await cachePlugin.afterCacheAccess(cacheContext);
 
       expect(serializeMock).toHaveBeenCalled();
-      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, {
+      expect(fs.writeFile).toHaveBeenCalledWith(tmpPath, mockSerializedData, {
         encoding: "utf8",
         mode: 0o600,
+        flag: "wx",
       });
+      expect(fs.rename).toHaveBeenCalledWith(tmpPath, CACHE_PATH);
+      // The existing cache file is never written in place
+      expect(fs.writeFile).not.toHaveBeenCalledWith(
+        CACHE_PATH,
+        expect.anything(),
+        expect.anything()
+      );
     });
 
-    it("should restrict cache file permissions to the owner", async () => {
-      const cacheContext = {
-        cacheHasChanged: true,
-        tokenCache: {
-          serialize: vi.fn().mockReturnValue("{}"),
-        },
-      } as unknown as TokenCacheContext;
-
-      await cachePlugin.afterCacheAccess(cacheContext);
-
-      expect(fs.chmod).toHaveBeenCalledWith(CACHE_PATH, 0o600);
-    });
-
-    it("should tolerate chmod being unsupported", async () => {
-      vi.mocked(fs.chmod).mockRejectedValue(new Error("ENOSYS"));
+    it("should clean up the temp file and warn when the rename fails", async () => {
+      const error = new Error("EPERM");
+      vi.mocked(fs.rename).mockRejectedValue(error);
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {
         // Intentionally empty to suppress console output during tests
       });
@@ -137,8 +135,8 @@ describe("MSAL Cache Plugin", () => {
 
       await cachePlugin.afterCacheAccess(cacheContext);
 
-      expect(fs.writeFile).toHaveBeenCalled();
-      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      expect(fs.rm).toHaveBeenLastCalledWith(`${CACHE_PATH}.${process.pid}.tmp`, { force: true });
+      expect(consoleErrorSpy).toHaveBeenCalledWith("Warning: Could not write token cache:", error);
       consoleErrorSpy.mockRestore();
     });
 
@@ -179,10 +177,7 @@ describe("MSAL Cache Plugin", () => {
       await cachePlugin.afterCacheAccess(cacheContext);
 
       expect(serializeMock).toHaveBeenCalled();
-      expect(fs.writeFile).toHaveBeenCalledWith(CACHE_PATH, mockSerializedData, {
-        encoding: "utf8",
-        mode: 0o600,
-      });
+      expect(fs.rename).not.toHaveBeenCalled();
       expect(consoleErrorSpy).toHaveBeenCalledWith("Warning: Could not write token cache:", error);
 
       consoleErrorSpy.mockRestore();
