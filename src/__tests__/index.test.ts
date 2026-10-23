@@ -19,7 +19,12 @@ vi.mock("node:os", async (importOriginal) => {
 
 const msalMocks = vi.hoisted(() => ({
   acquireTokenByDeviceCode: vi.fn(),
+  acquireTokenInteractive: vi.fn(),
 }));
+
+const openMock = vi.hoisted(() => vi.fn());
+
+vi.mock("open", () => ({ default: openMock }));
 
 vi.mock("@azure/msal-node", () => ({
   PublicClientApplication: vi.fn(),
@@ -45,6 +50,7 @@ beforeEach(async () => {
   vi.mocked(PublicClientApplication).mockImplementation(function () {
     return {
       acquireTokenByDeviceCode: msalMocks.acquireTokenByDeviceCode,
+      acquireTokenInteractive: msalMocks.acquireTokenInteractive,
     } as never;
   });
 });
@@ -192,6 +198,93 @@ describe("MCP Server CLI", () => {
       expect(scopes).not.toContain("Chat.ReadWrite");
       expect(scopes).not.toContain("ChannelMessage.Send");
       expect(scopes).toContain("User.Read");
+    });
+    it("logs the device code instructions", async () => {
+      msalMocks.acquireTokenByDeviceCode.mockImplementation(async ({ deviceCodeCallback }) => {
+        deviceCodeCallback({
+          verificationUri: "https://microsoft.com/devicelogin",
+          userCode: "ABC123",
+        });
+        return null;
+      });
+
+      await importIndex(["authenticate"]);
+
+      expect(consoleLog).toHaveBeenCalledWith("🔑 Enter code: ABC123");
+      await expect(fs.access(AUTH_INFO_PATH)).rejects.toThrow();
+    });
+
+    it("runs the interactive flow when --interactive is given", async () => {
+      msalMocks.acquireTokenInteractive.mockImplementation(async ({ openBrowser }) => {
+        await openBrowser("https://login.microsoftonline.com/authorize");
+        return {
+          account: { username: "test@example.com" },
+          scopes: ["User.Read"],
+          expiresOn: new Date(Date.now() + 3_600_000),
+        };
+      });
+
+      await importIndex(["authenticate", "--interactive"]);
+
+      expect(msalMocks.acquireTokenByDeviceCode).not.toHaveBeenCalled();
+      expect(openMock).toHaveBeenCalledWith("https://login.microsoftonline.com/authorize");
+      expect(consoleLog).toHaveBeenCalledWith("🔁 Flow: interactive (auth code + PKCE)");
+
+      const stored = JSON.parse(await fs.readFile(AUTH_INFO_PATH, "utf8"));
+      expect(stored).toMatchObject({ authenticated: true, account: "test@example.com" });
+      if (process.platform !== "win32") {
+        expect((await fs.stat(AUTH_INFO_PATH)).mode & 0o777).toBe(0o600);
+      }
+    });
+
+    it.each([
+      ["AADSTS50020: user not found", "User account not in tenant"],
+      ["AADSTS65001: consent required", "Admin consent required"],
+      ["AADSTS530032: blocked by CA", "Blocked by Conditional Access"],
+    ])("explains %s and exits", async (message, expected) => {
+      const exit = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+      msalMocks.acquireTokenByDeviceCode.mockRejectedValue(new Error(message));
+
+      await importIndex(["authenticate"]);
+
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining(expected));
+      expect(exit).toHaveBeenCalledWith(1);
+      exit.mockRestore();
+    });
+
+    it("suggests --interactive when Conditional Access blocks the device code flow", async () => {
+      const exit = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+      msalMocks.acquireTokenByDeviceCode.mockRejectedValue(new Error("AADSTS530032: blocked"));
+
+      await importIndex(["authenticate"]);
+
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("--interactive"));
+      exit.mockRestore();
+    });
+
+    it("points to the tenant policy when Conditional Access blocks the interactive flow", async () => {
+      const exit = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+      msalMocks.acquireTokenInteractive.mockRejectedValue(new Error("AADSTS530032: blocked"));
+
+      await importIndex(["authenticate", "--interactive"]);
+
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining("Blocked by Conditional Access")
+      );
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("sign-in logs"));
+      expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("--interactive"));
+      exit.mockRestore();
+    });
+
+    it("reports unknown errors from the interactive flow and exits", async () => {
+      const exit = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+      msalMocks.acquireTokenInteractive.mockRejectedValue("user cancelled");
+
+      await importIndex(["authenticate", "--interactive"]);
+
+      expect(consoleError).toHaveBeenCalledWith("\n❌ Authentication failed:", "user cancelled");
+      expect(exit).toHaveBeenCalledWith(1);
+      exit.mockRestore();
     });
   });
 });
