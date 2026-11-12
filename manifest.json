@@ -1,0 +1,30 @@
+{
+  "manifest_version": "0.2",
+  "name": "@floriscornel/teams-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Microsoft Graph Teams integration",
+  "author": {
+    "name": "Floris Cornel"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
+      "env": {}
+    }
+  },
+  "tools": [
+    {
+      "name": "Teams MCP"
+    }
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/floriscornel/teams-mcp.git"
+  }
+}
