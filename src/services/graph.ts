@@ -2,8 +2,10 @@ import { type AccountInfo, PublicClientApplication } from "@azure/msal-node";
 import { Client } from "@microsoft/microsoft-graph-client";
 import { cachePlugin } from "../msal-cache.js";
 
-const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
-const AUTHORITY = "https://login.microsoftonline.com/common";
+// Microsoft Graph CLI app ID (default public client)
+// Override with your own app registration via TEAMS_MCP_CLIENT_ID / TEAMS_MCP_TENANT_ID
+const CLIENT_ID = process.env.TEAMS_MCP_CLIENT_ID || "14d82eec-204b-4c2f-b7e8-296a70dab67e";
+const AUTHORITY = `https://login.microsoftonline.com/${process.env.TEAMS_MCP_TENANT_ID || "common"}`;
 
 /** Scopes sufficient for read-only operations (no message sending, no file uploads). */
 export const READ_ONLY_SCOPES = [
@@ -24,6 +26,21 @@ export const FULL_SCOPES = [
   "Chat.ReadWrite",
   "Files.ReadWrite.All",
 ];
+
+/**
+ * Resolve the scopes to request: TEAMS_MCP_SCOPES (comma/space separated)
+ * takes precedence, otherwise the read-only or full default set.
+ */
+export function resolveScopes(readOnly: boolean): string[] {
+  const envScopes = process.env.TEAMS_MCP_SCOPES;
+  if (envScopes) {
+    return envScopes
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return readOnly ? READ_ONLY_SCOPES : FULL_SCOPES;
+}
 
 export interface AuthStatus {
   isAuthenticated: boolean;
@@ -59,7 +76,7 @@ export class GraphService {
 
   /** Returns the scopes to request based on the current mode. */
   get scopes(): string[] {
-    return this._readOnlyMode ? READ_ONLY_SCOPES : FULL_SCOPES;
+    return resolveScopes(this._readOnlyMode);
   }
 
   private async initializeClient(): Promise<void> {

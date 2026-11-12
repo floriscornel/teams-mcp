@@ -46,7 +46,6 @@ describe("GraphService", () => {
   let graphService: GraphService;
 
   beforeEach(() => {
-    server.listen({ onUnhandledRequest: "error" });
     vi.clearAllMocks();
     setupDefaultMsalMock();
 
@@ -57,7 +56,6 @@ describe("GraphService", () => {
 
   afterEach(() => {
     server.resetHandlers();
-    server.close();
   });
 
   describe("getInstance", () => {

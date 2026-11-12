@@ -1,6 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { afterEach, beforeEach, expect, vi } from "vitest";
+import { afterEach, beforeEach, expect, type Mock, vi } from "vitest";
 import type {
   Channel,
   Chat,
@@ -186,7 +186,7 @@ export const graphApiHandlers = [
     }
   ),
 
-  http.post("https://graph.microsoft.com/v1.0/me/chats", async ({ request }) => {
+  http.post("https://graph.microsoft.com/v1.0/chats", async ({ request }) => {
     const body = (await request.json()) as any;
     const response = {
       ...mockChat,
@@ -282,30 +282,30 @@ export const graphApiHandlers = [
 // Setup MSW server
 export const server = setupServer(...graphApiHandlers);
 
+// Mock file system operations for token storage (must be at top level for vitest hoisting)
+vi.mock("node:fs", async () => {
+  const actual = (await vi.importActual("node:fs")) as any;
+  return {
+    ...actual,
+    promises: {
+      ...(actual.promises || {}),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      unlink: vi.fn(),
+      access: vi.fn(),
+    },
+  };
+});
+
+// Mock Azure identity
+vi.mock("@azure/identity", () => ({
+  DeviceCodeCredential: vi.fn(),
+}));
+
 // Global test setup
 beforeEach(() => {
   // Reset all mocks before each test
   vi.clearAllMocks();
-
-  // Mock file system operations for token storage
-  vi.mock("node:fs", async () => {
-    const actual = (await vi.importActual("node:fs")) as any;
-    return {
-      ...actual,
-      promises: {
-        ...(actual.promises || {}),
-        readFile: vi.fn(),
-        writeFile: vi.fn(),
-        unlink: vi.fn(),
-        access: vi.fn(),
-      },
-    };
-  });
-
-  // Mock Azure identity
-  vi.mock("@azure/identity", () => ({
-    DeviceCodeCredential: vi.fn(),
-  }));
 });
 
 afterEach(() => {
@@ -314,7 +314,12 @@ afterEach(() => {
 });
 
 // Helper function to create mock authenticated GraphService
-export function createMockGraphService() {
+export function createMockGraphService(): {
+  getInstance: Mock;
+  getAuthStatus: Mock;
+  getClient: Mock;
+  isAuthenticated: Mock;
+} {
   return {
     getInstance: vi.fn().mockReturnThis(),
     getAuthStatus: vi.fn().mockResolvedValue({
@@ -335,7 +340,12 @@ export function createMockGraphService() {
 }
 
 // Helper function to create mock unauthenticated GraphService
-export function createMockUnauthenticatedGraphService() {
+export function createMockUnauthenticatedGraphService(): {
+  getInstance: Mock;
+  getAuthStatus: Mock;
+  getClient: Mock;
+  isAuthenticated: Mock;
+} {
   return {
     getInstance: vi.fn().mockReturnThis(),
     getAuthStatus: vi.fn().mockResolvedValue({
@@ -347,8 +357,31 @@ export function createMockUnauthenticatedGraphService() {
 }
 
 // Helper function to create mock MCP server
-export function createMockMcpServer() {
-  const tools = new Map();
+export function createMockMcpServer(): {
+  tool: Mock;
+  registerTool: Mock;
+  connect: Mock;
+  getTool: (name: string) =>
+    | {
+        description: unknown;
+        schema: unknown;
+        handler: (...args: unknown[]) => unknown;
+        title?: unknown;
+        annotations?: unknown;
+      }
+    | undefined;
+  getAllTools: () => string[];
+} {
+  const tools = new Map<
+    string,
+    {
+      description: unknown;
+      schema: unknown;
+      handler: (...args: unknown[]) => unknown;
+      title?: unknown;
+      annotations?: unknown;
+    }
+  >();
 
   return {
     tool: vi.fn().mockImplementation((name, description, schema, handler) => {

@@ -394,6 +394,75 @@ describe("Teams Tools", () => {
       });
     });
 
+    it("should fall back to mention text when user lookup fails", async () => {
+      const sentMessage = { ...mockChatMessage, id: "mention-message-id" };
+      mockClient.api.mockImplementation((path: string) => {
+        if (path.startsWith("/users/")) {
+          return {
+            select: vi.fn().mockReturnValue({
+              get: vi.fn().mockRejectedValue(new Error("lookup failed")),
+            }),
+          };
+        }
+        return {
+          post: vi.fn().mockResolvedValue(sentMessage),
+        };
+      });
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("send_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        message: "Ping @alex.chen",
+        mentions: [{ mention: "alex.chen", userId: "unknown-id" }],
+      });
+
+      expect(result.content[0].text).toContain("Mentions: alex.chen");
+    });
+
+    it("update_channel_message falls back to mention text when lookup fails", async () => {
+      const sentMessage = { ...mockChatMessage, id: "updated-mention-id" };
+      mockClient.api.mockImplementation((path: string) => {
+        if (path.startsWith("/users/")) {
+          return {
+            select: vi.fn().mockReturnValue({
+              get: vi.fn().mockRejectedValue(new Error("lookup failed")),
+            }),
+          };
+        }
+        return {
+          patch: vi.fn().mockResolvedValue(sentMessage),
+        };
+      });
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("update_channel_message");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "test-message-id",
+        message: "Updated ping @alex.chen",
+        mentions: [{ mention: "alex.chen", userId: "unknown-id" }],
+      });
+
+      expect(result.content[0].text).toContain("Mentions: alex.chen");
+    });
+
+    it("download_message_hosted_content reports unknown errors for non-Error throws", async () => {
+      (mockGraphService.getClient as ReturnType<typeof vi.fn>).mockRejectedValueOnce(42);
+      registerTeamsTools(mockServer, mockGraphService, false);
+
+      const tool = mockServer.getTool("download_message_hosted_content");
+      const result = await tool.handler({
+        teamId: "test-team-id",
+        channelId: "test-channel-id",
+        messageId: "test-message-id",
+      });
+
+      expect(result.content[0].text).toContain("Unknown error occurred");
+    });
+
     it("should send message with custom importance", async () => {
       const sentMessage = { ...mockChatMessage, id: "new-message-id" };
       mockClient.api().post.mockResolvedValue(sentMessage);
